@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
     QLineEdit, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QMessageBox
+    QMessageBox, QInputDialog 
 )
 from PyQt6.QtCore import Qt
 from src.database import cari_produk_dari_barcode, create_connection
@@ -26,6 +26,13 @@ class KasirWindow(QMainWindow):
         self.barcode_input.setPlaceholderText("Scan barcode di sini...")
         self.barcode_input.returnPressed.connect(self.tambah_barang_ke_keranjang)
         barcode_layout.addWidget(self.barcode_input)
+        layout.addLayout(barcode_layout)
+
+        # Tombol scan (opsional, untuk debugging atau jika tidak pakai scanner fisik)
+        self.btn_scan = QPushButton("Scan")
+        self.btn_scan.clicked.connect(self.scan_barcode_manual)
+        barcode_layout.addWidget(self.btn_scan)
+        
         layout.addLayout(barcode_layout)
 
         # Tabel keranjang
@@ -71,6 +78,19 @@ class KasirWindow(QMainWindow):
             QMessageBox.warning(self, "Barang Tidak Ditemukan", f"Barcode {barcode} tidak ditemukan di database.")
 
         self.barcode_input.clear()
+
+    def scan_barcode_manual(self):
+        """Fungsi untuk scan barcode manual (jika tidak pakai scanner fisik)"""
+        
+        barcode, ok = QInputDialog.getText(
+            self, 
+            "Input Barcode", 
+            "Masukkan barcode produk:"
+        )
+        
+        if ok and barcode:
+            self.barcode_input.setText(barcode)
+            self.tambah_barang_ke_keranjang()
 
     def bayar(self):
         if not self.keranjang:
