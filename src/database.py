@@ -1,13 +1,13 @@
 import sqlite3
 from pathlib import Path
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 import csv
 import hashlib
-import os  
-from barcode import Code128  
-from barcode.writer import ImageWriter  
-from PIL import Image, ImageDraw, ImageFont  
+import os
+from barcode import Code128
+from barcode.writer import ImageWriter
+from PIL import Image, ImageDraw, ImageFont
 
 DB_PATH = Path("data/pos.db")
 
@@ -39,7 +39,7 @@ def create_tables():
         )
     """)
 
-    # Tabel user (tambahkan ini)
+    # Tabel user
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS user (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,6 +58,17 @@ def create_tables():
             harga REAL NOT NULL,
             subtotal REAL NOT NULL,
             FOREIGN KEY(transaksi_id) REFERENCES transaksi(id)
+        )
+    """)
+
+    # Tabel log aktivitas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS log_aktivitas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            aktivitas TEXT NOT NULL,
+            tanggal TEXT NOT NULL,
+            detail TEXT
         )
     """)
 
@@ -106,7 +117,7 @@ def restore_database(backup_path):
 def export_produk_ke_csv():
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, barcode, nama, harga, stok FROM produk")  # Gunakan id juga
+    cursor.execute("SELECT id, barcode, nama, harga, stok FROM produk")
     rows = cursor.fetchall()
     conn.close()
 
@@ -116,7 +127,7 @@ def export_produk_ke_csv():
 
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["id", "barcode", "nama", "harga", "stok"])  # Header dengan id
+        writer.writerow(["id", "barcode", "nama", "harga", "stok"])
         writer.writerows(rows)
 
     return csv_path
@@ -130,7 +141,7 @@ def import_produk_dari_csv(csv_path):
         for row in reader:
             cursor.execute("""
                 INSERT OR REPLACE INTO produk (id, barcode, nama, harga, stok)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?)
             """, (int(row["id"]), row["barcode"], row["nama"], float(row["harga"]), int(row["stok"])))
 
     conn.commit()
@@ -162,7 +173,7 @@ def cek_login(username, password):
     cursor.execute("SELECT * FROM user WHERE username = ? AND password = ?", (username, hashed_password))
     user = cursor.fetchone()
     conn.close()
-    return user is not None  
+    return user is not None
 
 def buat_user_default():
     """Buat user default jika belum ada user sama sekali"""
@@ -175,7 +186,15 @@ def buat_user_default():
     if count == 0:
         # Buat user default: username=admin, password=admin
         tambah_user("admin", "admin")
-        print("User default dibuat: username=admin, password=admin")  
+        print("User default dibuat: username=admin, password=admin")
+
+def semua_produk():
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, barcode, nama, harga, stok FROM produk")
+    produk = cursor.fetchall()
+    conn.close()
+    return produk
 
 def cari_produk_by_id(id_produk):
     conn = create_connection()
@@ -213,7 +232,8 @@ def update_stok_produk(id_produk, stok_baru):
 
 def backup_database_otomatis():
     """Backup database otomatis saat aplikasi dibuka"""
-    from datetime import datetime
+    # import os  # Sudah diimport di awal file
+    from datetime import datetime  # Sudah diimport di awal file
     
     # Cek apakah file database ada
     if not DB_PATH.exists():
@@ -236,12 +256,9 @@ def backup_database_otomatis():
 
 def backup_database_harian():
     """Backup database harian (hanya satu backup per hari)"""
-
-    # Ambil waktu dengan timezone WIB (UTC+7)
-    waktu_sekarang = datetime.now()
+    # import os  # Sudah diimport di awal file
+    from datetime import datetime  # Sudah diimport di awal file
     
-    # Ambil tanggal dalam format YYYYMMDD
-    tanggal_hari_ini = waktu_sekarang.strftime("%Y%m%d")
     # Cek apakah file database ada
     if not DB_PATH.exists():
         print("Database belum ada, tidak perlu backup.")
@@ -308,7 +325,10 @@ def tampilkan_notifikasi_stok_rendah():
 
 def generate_barcode_gambar(barcode_value, nama_produk, output_path):
     """Generate barcode sebagai gambar PNG"""
-   
+    # from barcode import Code128  # Sudah diimport di awal file
+    # from barcode.writer import ImageWriter  # Sudah diimport di awal file
+    # import os  # Sudah diimport di awal file
+    
     # Buat folder barcode jika belum ada
     barcode_folder = os.path.dirname(output_path)
     os.makedirs(barcode_folder, exist_ok=True)
@@ -320,7 +340,7 @@ def generate_barcode_gambar(barcode_value, nama_produk, output_path):
     barcode_path = barcode.save(output_path)
     
     # Tambahkan nama produk di bawah barcode
-    from PIL import Image, ImageDraw, ImageFont
+    # from PIL import Image, ImageDraw, ImageFont  # Sudah diimport di awal file
     
     # Buka gambar barcode
     img = Image.open(barcode_path)
@@ -349,11 +369,13 @@ def generate_barcode_gambar(barcode_value, nama_produk, output_path):
     # Simpan gambar baru
     new_img.save(barcode_path)
     
-    return barcode_path   
+    return barcode_path
 
 def generate_semua_barcode_gambar():
     """Generate barcode untuk semua produk"""
-
+    import os
+    from datetime import datetime
+    
     # Ambil semua produk dari database
     produk_list = semua_produk()
     
@@ -380,4 +402,144 @@ def generate_semua_barcode_gambar():
             except Exception as e:
                 print(f"Gagal generate barcode untuk {nama}: {str(e)}")
     
-    return hasil     
+    return hasil
+
+def semua_user():
+    """Ambil semua user dari database"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username FROM user")
+    hasil = cursor.fetchall()
+    conn.close()
+    return hasil
+
+def tambah_user_baru(username, password):
+    """Tambah user baru ke database"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    hashed_password = hash_password(password)
+    try:
+        cursor.execute("INSERT INTO user (username, password) VALUES (?, ?)", (username, hashed_password))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        conn.close()
+        return False
+
+def update_user(id_user, username_baru, password_baru=None):
+    """Update user (username dan/atau password)"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    if password_baru:
+        hashed_password = hash_password(password_baru)
+        cursor.execute("UPDATE user SET username = ?, password = ? WHERE id = ?", 
+                      (username_baru, hashed_password, id_user))
+    else:
+        cursor.execute("UPDATE user SET username = ? WHERE id = ?", (username_baru, id_user))
+    
+    conn.commit()
+    conn.close()
+
+def hapus_user(id_user):
+    """Hapus user dari database"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM user WHERE id = ?", (id_user,))
+    conn.commit()
+    conn.close()
+
+def cek_username_sudah_ada(username, id_user_kecuali=None):
+    """Cek apakah username sudah ada (untuk validasi update)"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    if id_user_kecuali:
+        cursor.execute("SELECT COUNT(*) FROM user WHERE username = ? AND id != ?", (username, id_user_kecuali))
+    else:
+        cursor.execute("SELECT COUNT(*) FROM user WHERE username = ?", (username,))
+    
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count > 0
+
+def log_aktivitas_pengguna(username, aktivitas, detail=None):
+    """Log aktivitas pengguna ke database"""
+    # from datetime import datetime  # Sudah diimport di awal file
+    
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO log_aktivitas (username, aktivitas, tanggal, detail)
+        VALUES (?, ?, ?, ?)
+    """, (username, aktivitas, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), detail))
+    
+    conn.commit()
+    conn.close()
+
+def ambil_log_aktivitas(username=None, limit=50):
+    """Ambil log aktivitas (semua atau berdasarkan user)"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    if username:
+        cursor.execute("""
+            SELECT username, aktivitas, tanggal, detail
+            FROM log_aktivitas
+            WHERE username = ?
+            ORDER BY tanggal DESC
+            LIMIT ?
+        """, (username, limit))
+    else:
+        cursor.execute("""
+            SELECT username, aktivitas, tanggal, detail
+            FROM log_aktivitas
+            ORDER BY tanggal DESC
+            LIMIT ?
+        """, (limit,))
+    
+    hasil = cursor.fetchall()
+    conn.close()
+    return hasil
+
+def tambah_produk_dengan_log(barcode, nama, harga, stok, username):
+    """Tambah produk dan log aktivitas"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO produk (barcode, nama, harga, stok)
+        VALUES (?, ?, ?, ?)
+    """, (barcode, nama, harga, stok))
+    conn.commit()
+    conn.close()
+    
+    # Log aktivitas
+    log_aktivitas_pengguna(username, "Tambah Produk", f"Barcode: {barcode}, Nama: {nama}")
+
+def update_produk_dengan_log(id_produk, barcode, nama, harga, stok, username):
+    """Update produk dan log aktivitas"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE produk 
+        SET barcode = ?, nama = ?, harga = ?, stok = ? 
+        WHERE id = ?
+    """, (barcode, nama, harga, stok, id_produk))
+    conn.commit()
+    conn.close()
+    
+    # Log aktivitas
+    log_aktivitas_pengguna(username, "Edit Produk", f"ID: {id_produk}, Nama: {nama}")
+
+def hapus_produk_dengan_log(id_produk, username):
+    """Hapus produk dan log aktivitas"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM produk WHERE id = ?", (id_produk,))
+    conn.commit()
+    conn.close()
+    
+    # Log aktivitas
+    log_aktivitas_pengguna(username, "Hapus Produk", f"ID: {id_produk}")

@@ -64,7 +64,7 @@ class LoginWindow(QMainWindow):
             
             # Panggil callback jika login sukses
             if self.on_login_success:
-                self.on_login_success()
+                self.on_login_success(username)
             
             # Tutup jendela login
             self.close()

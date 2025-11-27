@@ -1,15 +1,11 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
     QLineEdit, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QMessageBox, QDialog, QRadioButton, QButtonGroup
+    QMessageBox
 )
 from src.database import (
-    tambah_produk, 
-    semua_produk, 
-    cari_produk_by_id, 
-    update_produk, 
-    hapus_produk,
-    update_stok_produk 
+    tambah_produk_dengan_log, semua_produk, cari_produk_by_id, 
+    update_produk_dengan_log, hapus_produk_dengan_log
 )
 
 class ProdukWindow(QMainWindow):
@@ -54,21 +50,6 @@ class ProdukWindow(QMainWindow):
         self.muat_produk()
         self.atur_lebar_kolom()
 
-    def atur_lebar_kolom(self):
-        """Atur lebar kolom tabel agar lebih rapi"""
-        # Kolom ID
-        self.table.setColumnWidth(0, 50)   # ID
-        # Kolom Barcode  
-        self.table.setColumnWidth(1, 120)  # Barcode
-        # Kolom Nama
-        self.table.setColumnWidth(2, 200)  # Nama
-        # Kolom Harga
-        self.table.setColumnWidth(3, 100)  # Harga
-        # Kolom Stok
-        self.table.setColumnWidth(4, 80)   # Stok
-        # Kolom Aksi
-        self.table.setColumnWidth(5, 180)  # Aksi (Edit + Stok + Hapus)
-
     def simpan_produk(self):
         barcode = self.barcode_input.text().strip()
         nama = self.nama_input.text().strip()
@@ -86,7 +67,10 @@ class ProdukWindow(QMainWindow):
             QMessageBox.warning(self, "Input Salah", "Harga harus angka.")
             return
 
-        tambah_produk(barcode, nama, harga, stok)
+        # Ganti dengan fungsi yang ada log-nya
+        username = getattr(self, 'current_user', 'admin')
+        tambah_produk_dengan_log(barcode, nama, harga, stok, username)
+        
         self.muat_produk()
 
         # Clear form
@@ -115,7 +99,7 @@ class ProdukWindow(QMainWindow):
             # Kolom Aksi: Tombol Edit dan Hapus
             aksi_widget = QWidget()
             aksi_layout = QHBoxLayout(aksi_widget)
-            aksi_layout.setContentsMargins(5, 2, 5, 2)
+            aksi_layout.setContentsMargins(2, 2, 2, 2)
             aksi_layout.setSpacing(2)
             
             btn_edit = QPushButton("Edit")
@@ -123,11 +107,11 @@ class ProdukWindow(QMainWindow):
             btn_edit.clicked.connect(lambda checked, id=id_produk: self.edit_produk(id))
             
             btn_stok = QPushButton("Stok")
-            btn_edit.setFixedSize(50, 25)  
+            btn_stok.setFixedSize(50, 25)
             btn_stok.clicked.connect(lambda checked, id=id_produk: self.manajemen_stok(id))
-
+            
             btn_hapus = QPushButton("Hapus")
-            btn_edit.setFixedSize(50, 25)
+            btn_hapus.setFixedSize(50, 25)
             btn_hapus.clicked.connect(lambda checked, id=id_produk: self.hapus_produk(id))
             
             aksi_layout.addWidget(btn_edit)
@@ -153,19 +137,18 @@ class ProdukWindow(QMainWindow):
             
             # Ganti tombol simpan menjadi tombol update
             self.btn_simpan.setText("Update Produk")
-            self.btn_simpan.clicked.disconnect()  # Hapus koneksi sebelumnya
+            self.btn_simpan.clicked.disconnect()
             self.btn_simpan.clicked.connect(lambda: self.update_produk(id_produk))
 
     def update_produk(self, id_produk):
         """Fungsi untuk update produk"""
-
+        
         barcode = self.barcode_input.text().strip()
         nama = self.nama_input.text().strip()
         harga = self.harga_input.text().strip()
         stok = self.stok_input.text().strip()
 
         if not barcode or not nama or not harga:
-            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Input Tidak Lengkap", "Lengkapi semua data.")
             return
 
@@ -173,11 +156,11 @@ class ProdukWindow(QMainWindow):
             harga = float(harga)
             stok = int(stok) if stok else 0
         except ValueError:
-            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Input Salah", "Harga harus angka.")
             return
 
-        update_produk(id_produk, barcode, nama, harga, stok)
+        username = getattr(self, 'current_user', 'admin')
+        update_produk_dengan_log(id_produk, barcode, nama, harga, stok, username)
         self.muat_produk()
 
         # Kembalikan tombol ke mode simpan
@@ -193,7 +176,9 @@ class ProdukWindow(QMainWindow):
 
     def hapus_produk(self, id_produk):
         """Fungsi untuk hapus produk"""
-
+        
+        from PyQt6.QtWidgets import QMessageBox
+        
         reply = QMessageBox.question(
             self, 
             "Konfirmasi Hapus", 
@@ -202,8 +187,9 @@ class ProdukWindow(QMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            hapus_produk(id_produk)
-            self.muat_produk() 
+            username = getattr(self, 'current_user', 'admin')
+            hapus_produk_dengan_log(id_produk, username)
+            self.muat_produk()
 
     def manajemen_stok(self, id_produk):
         """Fungsi untuk manajemen stok produk"""
@@ -213,6 +199,7 @@ class ProdukWindow(QMainWindow):
             id_produk, barcode, nama, harga, stok_awal = produk
             
             # Buat jendela dialog untuk input stok
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
             dialog = QDialog(self)
             dialog.setWindowTitle(f"Manajemen Stok - {nama}")
             dialog.setGeometry(200, 200, 300, 150)
@@ -232,10 +219,11 @@ class ProdukWindow(QMainWindow):
             layout.addLayout(input_layout)
             
             # Radio button untuk tambah/kurangi
+            from PyQt6.QtWidgets import QRadioButton, QButtonGroup
             radio_layout = QHBoxLayout()
             
             radio_tambah = QRadioButton("Tambah Stok")
-            radio_tambah.setChecked(True)  # Default pilih tambah
+            radio_tambah.setChecked(True)
             radio_kurang = QRadioButton("Kurangi Stok")
             
             group_radio = QButtonGroup(dialog)
@@ -253,40 +241,60 @@ class ProdukWindow(QMainWindow):
             ))
             layout.addWidget(btn_simpan)
             
-            dialog.exec()   
+            dialog.exec()
 
     def simpan_manajemen_stok(self, id_produk, jumlah_str, is_tambah, stok_awal, dialog):
-            """Fungsi untuk menyimpan perubahan stok"""
-            
-            if not jumlah_str:
-                QMessageBox.warning(self, "Input Tidak Lengkap", "Jumlah stok harus diisi.")
+        """Fungsi untuk menyimpan perubahan stok"""
+        
+        if not jumlah_str:
+            QMessageBox.warning(self, "Input Tidak Lengkap", "Jumlah stok harus diisi.")
+            return
+        
+        try:
+            jumlah = int(jumlah_str)
+            if jumlah <= 0:
+                QMessageBox.warning(self, "Input Salah", "Jumlah harus lebih dari 0.")
                 return
-            
-            try:
-                jumlah = int(jumlah_str)
-                if jumlah <= 0:
-                    QMessageBox.warning(self, "Input Salah", "Jumlah harus lebih dari 0.")
-                    return
-            except ValueError:
-                QMessageBox.warning(self, "Input Salah", "Jumlah harus angka.")
+        except ValueError:
+            QMessageBox.warning(self, "Input Salah", "Jumlah harus angka.")
+            return
+        
+        # Hitung stok baru
+        if is_tambah:
+            stok_baru = stok_awal + jumlah
+        else:
+            if jumlah > stok_awal:
+                QMessageBox.warning(self, "Stok Tidak Cukup", f"Stok hanya {stok_awal}, tidak bisa dikurangi {jumlah}.")
                 return
-            
-            # Hitung stok baru
-            if is_tambah:
-                stok_baru = stok_awal + jumlah
-            else:
-                if jumlah > stok_awal:
-                    QMessageBox.warning(self, "Stok Tidak Cukup", f"Stok hanya {stok_awal}, tidak bisa dikurangi {jumlah}.")
-                    return
-                stok_baru = stok_awal - jumlah
-            
-            # Update stok di database
-            update_stok_produk(id_produk, stok_baru)
-            
-            # Refresh tabel
-            self.muat_produk()
-            
-            # Tutup dialog
-            dialog.close()
-            
-            QMessageBox.information(self, "Berhasil", f"Stok berhasil diupdate menjadi {stok_baru}")
+            stok_baru = stok_awal - jumlah
+        
+        # Update stok di database
+        from src.database import update_stok_produk
+        update_stok_produk(id_produk, stok_baru)
+        
+        # Refresh tabel
+        self.muat_produk()
+        
+        # Tutup dialog
+        dialog.close()
+        
+        QMessageBox.information(self, "Berhasil", f"Stok berhasil diupdate menjadi {stok_baru}")
+
+    def atur_lebar_kolom(self):
+        """Atur lebar kolom tabel agar lebih rapi"""
+        # Kolom ID
+        self.table.setColumnWidth(0, 50)   # ID
+        # Kolom Barcode  
+        self.table.setColumnWidth(1, 120)  # Barcode
+        # Kolom Nama
+        self.table.setColumnWidth(2, 200)  # Nama
+        # Kolom Harga
+        self.table.setColumnWidth(3, 100)  # Harga
+        # Kolom Stok
+        self.table.setColumnWidth(4, 80)   # Stok
+        # Kolom Aksi
+        self.table.setColumnWidth(5, 180)  # Aksi (Edit + Stok + Hapus)
+
+    def set_current_user(self, username):
+        """Set username untuk window ini"""
+        self.current_user = username

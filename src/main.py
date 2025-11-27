@@ -17,8 +17,9 @@ class AppController:
         self.login_window = LoginWindow(on_login_success=self.on_login_success)
         self.login_window.show()
     
-    def on_login_success(self):
+    def on_login_success(self, username):
         """Fungsi dipanggil saat login sukses"""
+        self.current_user = username 
         # Sembunyikan jendela login
         if self.login_window:
             self.login_window.hide()
@@ -28,6 +29,7 @@ class AppController:
         
         # Tampilkan jendela utama
         self.main_window = MainWindow()
+        self.main_window.set_current_user(username)
         self.main_window.show()
     
     def run(self):

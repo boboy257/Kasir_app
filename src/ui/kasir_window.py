@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
     QLineEdit, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QMessageBox, QInputDialog 
+    QMessageBox
 )
 from PyQt6.QtCore import Qt
 from src.database import cari_produk_dari_barcode, create_connection
@@ -15,6 +15,7 @@ class KasirWindow(QMainWindow):
         self.setWindowTitle("Aplikasi Kasir - Mode Penjualan")
         self.setGeometry(100, 100, 900, 600)
 
+        # Widget utama
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
@@ -26,13 +27,6 @@ class KasirWindow(QMainWindow):
         self.barcode_input.setPlaceholderText("Scan barcode di sini...")
         self.barcode_input.returnPressed.connect(self.tambah_barang_ke_keranjang)
         barcode_layout.addWidget(self.barcode_input)
-        layout.addLayout(barcode_layout)
-
-        # Tombol scan (opsional, untuk debugging atau jika tidak pakai scanner fisik)
-        self.btn_scan = QPushButton("Scan")
-        self.btn_scan.clicked.connect(self.scan_barcode_manual)
-        barcode_layout.addWidget(self.btn_scan)
-        
         layout.addLayout(barcode_layout)
 
         # Tabel keranjang
@@ -74,23 +68,15 @@ class KasirWindow(QMainWindow):
 
             self.total += harga
             self.label_total.setText(f"Total: Rp {self.total}")
+            
+            # Log aktivitas scan
+            from src.database import log_aktivitas_pengguna
+            username = getattr(self, 'current_user', 'admin')
+            log_aktivitas_pengguna(username, "Scan Produk", f"Barcode: {barcode}, Nama: {nama}")
         else:
             QMessageBox.warning(self, "Barang Tidak Ditemukan", f"Barcode {barcode} tidak ditemukan di database.")
 
         self.barcode_input.clear()
-
-    def scan_barcode_manual(self):
-        """Fungsi untuk scan barcode manual (jika tidak pakai scanner fisik)"""
-        
-        barcode, ok = QInputDialog.getText(
-            self, 
-            "Input Barcode", 
-            "Masukkan barcode produk:"
-        )
-        
-        if ok and barcode:
-            self.barcode_input.setText(barcode)
-            self.tambah_barang_ke_keranjang()
 
     def bayar(self):
         if not self.keranjang:
@@ -115,13 +101,21 @@ class KasirWindow(QMainWindow):
                 VALUES (?, ?, ?, ?, ?)
             """, (transaksi_id, nama, jumlah, harga, subtotal))
 
-        # Cetak struk
-        from src.config import NAMA_TOKO, ALAMAT_TOKO
-        cetak_struk_pdf(NAMA_TOKO, ALAMAT_TOKO, self.keranjang, self.total)
-
-
         conn.commit()
         conn.close()
+
+        # Cetak struk
+        from src.config import NAMA_TOKO, ALAMAT_TOKO
+        filepath = cetak_struk_pdf(NAMA_TOKO, ALAMAT_TOKO, self.keranjang, self.total)
+
+        # Log aktivitas transaksi
+        from src.database import log_aktivitas_pengguna
+        username = getattr(self, 'current_user', 'admin')
+        log_aktivitas_pengguna(
+            username, 
+            "Transaksi Penjualan", 
+            f"ID Transaksi: {transaksi_id}, Total: Rp {self.total}, Jumlah Item: {len(self.keranjang)}"
+        )
 
         QMessageBox.information(self, "Pembayaran Berhasil", f"Total: Rp {self.total}\nTransaksi berhasil disimpan.")
         self.reset_keranjang()
@@ -131,3 +125,7 @@ class KasirWindow(QMainWindow):
         self.total = 0
         self.table.setRowCount(0)
         self.label_total.setText("Total: Rp 0")
+
+    def set_current_user(self, username):
+        """Set username untuk window ini"""
+        self.current_user = username
