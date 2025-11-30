@@ -114,3 +114,6 @@ class GenerateBarcodeWindow(QMainWindow):
                 self.muat_produk()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Gagal generate semua barcode:\n{str(e)}")
+                
+    def set_current_user(self, username):
+        self.current_user = username

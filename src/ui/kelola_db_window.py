@@ -58,3 +58,7 @@ class KelolaDBWindow(QMainWindow):
             QMessageBox.information(self, "Import Berhasil", f"Data produk berhasil diimpor dari:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Gagal import: {str(e)}")
+
+    # --- INI YANG TADI KURANG ---
+    def set_current_user(self, username):
+        self.current_user = username

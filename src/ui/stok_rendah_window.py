@@ -60,3 +60,6 @@ class StokRendahWindow(QMainWindow):
             self.table.setItem(row, 1, QTableWidgetItem(barcode))
             self.table.setItem(row, 2, QTableWidgetItem(nama))
             self.table.setItem(row, 3, QTableWidgetItem(str(stok)))
+            
+    def set_current_user(self, username):
+        self.current_user = username
