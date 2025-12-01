@@ -14,7 +14,7 @@ from src.ui.manajemen_user_window import ManajemenUserWindow
 from src.ui.log_aktivitas_window import LogAktivitasWindow
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, on_logout=None):
         super().__init__()
         self.setWindowTitle("Sistem Kasir Pro")
         self.setGeometry(100, 100, 900, 600)
@@ -30,10 +30,10 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(20)
 
         # 1. JUDUL APLIKASI
-        lbl_judul = QLabel("Menu Utama Aplikasi Kasir")
-        lbl_judul.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_judul.setStyleSheet("color: #ffffff; font-size: 24px; font-weight: bold; margin-bottom: 20px;")
-        main_layout.addWidget(lbl_judul)
+        self.lbl_judul = QLabel("Menu Utama Aplikasi Kasir")
+        self.lbl_judul.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_judul.setStyleSheet("color: #ffffff; font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+        main_layout.addWidget(self.lbl_judul)
 
         # 2. CONTAINER TOMBOL (GRID)
         grid_container = QWidget()
@@ -113,16 +113,89 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(grid_container)
         main_layout.addStretch()
 
-        # Fokus awal
+       # TOMBOL LOGOUT
+        self.btn_logout = QPushButton("Logout / Keluar")
+        self.btn_logout.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_logout.setStyleSheet("""
+            QPushButton {
+                background-color: #d32f2f; 
+                color: white; 
+                border: 2px solid #b71c1c; 
+                padding: 10px; 
+                border-radius: 5px;
+                font-weight: bold;
+                outline: none;
+            }
+            QPushButton:focus {
+                border: 2px solid #ff5252; /* Efek fokus logout */
+                background-color: #c62828;
+            }
+        """)
+        self.btn_logout.clicked.connect(self.close)
+        
+        # TOMBOL LOGOUT
+        self.btn_logout = QPushButton("Logout / Keluar")
+        self.btn_logout.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_logout.setStyleSheet("""
+            QPushButton {
+                background-color: #d32f2f; 
+                color: white; 
+                border: 2px solid #b71c1c; 
+                padding: 10px; 
+                border-radius: 5px;
+                font-weight: bold;
+                outline: none;
+            }
+            QPushButton:focus {
+                border: 2px solid #ff5252; /* Efek fokus logout */
+                background-color: #c62828;
+            }
+        """)
+        if on_logout:
+            self.btn_logout.clicked.connect(on_logout)
+        else:
+            self.btn_logout.clicked.connect(self.close)
+        
+        # [PERBAIKAN 1] Agar tombol logout bisa di-Enter
+        self.btn_logout.setAutoDefault(True)
+        self.btn_logout.setDefault(False)
+        self.btn_logout.installEventFilter(self) # Masukkan ke event filter juga biar nyambung navigasinya
+        self.btn_logout.setProperty("is_logout", True) # Penanda khusus
+
+        main_layout.addWidget(self.btn_logout)
+
         if self.buttons:
             self.buttons[0].setFocus()
+            
+    # --- LOGIKA HAK AKSES (ROLE) ---
+    def set_user_role(self, username, role):
+        """Mengatur tampilan berdasarkan role user"""
+        self.current_user = username
+        self.current_role = role
+        
+        # Update Judul
+        role_display = "ADMINISTRATOR" if role == "admin" else "KASIR"
+        self.lbl_judul.setText(f"Halo, {username} ({role_display})")
+        self.setWindowTitle(f"Sistem Kasir Pro - {role_display}")
 
+        # Logika Kunci Tombol
+        if role == "kasir":
+            tombol_dilarang = [1, 2, 3, 5, 6, 7]
+            
+            for index in tombol_dilarang:
+                self.buttons[index].setVisible(False) # Matikan tombol
+        else:
+            # Jika Admin, aktifkan semua
+            for btn in self.buttons:
+                btn.setVisible(True)
+                
     # --- LOGIKA NAVIGASI KEYBOARD CERDAS ---
     def eventFilter(self, obj, event):
         # Kita cek apakah kejadiannya adalah Penekanan Tombol Keyboard
         if event.type() == QEvent.Type.KeyPress:
             # Ambil index tombol saat ini (0 s/d 7)
             current_index = obj.property("index")
+            is_logout = obj.property("is_logout")
             
             if current_index is not None:
                 # Logika Pindah Fokus
@@ -140,8 +213,17 @@ class MainWindow(QMainWindow):
                 
                 # PANAH BAWAH -> Index + 4 (Pindah baris ke bawah)
                 elif event.key() == Qt.Key.Key_Down:
-                    if (current_index + self.max_col) < len(self.buttons):
-                        next_index = current_index + self.max_col
+                    target_bawah = current_index + 4
+                    
+                    if current_index >= 4:
+                        self.btn_logout.setFocus()
+                        return True
+                    elif target_bawah < len(self.buttons) and not self.buttons[target_bawah].isVisible():
+                        # Kasus khusus Kasir: Tombol bawahnya hilang, jadi langsung ke logout
+                        self.btn_logout.setFocus()
+                        return True
+                    elif target_bawah < len(self.buttons):
+                        next_index = target_bawah
                 
                 # PANAH ATAS -> Index - 4 (Pindah baris ke atas)
                 elif event.key() == Qt.Key.Key_Up:
@@ -158,6 +240,21 @@ class MainWindow(QMainWindow):
                     self.buttons[next_index].setFocus()
                     return True # Berhenti di sini, jangan biarkan Qt melakukan hal lain
 
+            # --- NAVIGASI TOMBOL LOGOUT ---
+            elif is_logout:
+                # ATAS -> Cari tombol aktif paling bawah
+                if event.key() == Qt.Key.Key_Up:
+                    # Kita cari dari belakang (index 7 mundur ke 0)
+                    for i in range(len(self.buttons) - 1, -1, -1):
+                        if self.buttons[i].isVisible():
+                            self.buttons[i].setFocus()
+                            return True
+                
+                # ENTER
+                elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    obj.click()
+                    return True
+                
         return super().eventFilter(obj, event)
 
     # --- Fungsi Handler Tetap Sama ---

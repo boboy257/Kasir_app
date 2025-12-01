@@ -56,7 +56,8 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS user (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'kasir'
         )
     """)
 
@@ -185,7 +186,7 @@ def tambah_user(username, password):
     cursor = conn.cursor()
     hashed_password = hash_password(password)
     try:
-        cursor.execute("INSERT INTO user (username, password) VALUES (?, ?)", (username, hashed_password))
+        cursor.execute("INSERT INTO user (username, password, role) VALUES (?, ?, ?)", (username, hashed_password))
         conn.commit()
         conn.close()
         return True
@@ -194,13 +195,20 @@ def tambah_user(username, password):
         return False
 
 def cek_login(username, password):
+    """Cek apakah username dan password benar"""
     conn = create_connection()
     cursor = conn.cursor()
     hashed_password = hash_password(password)
-    cursor.execute("SELECT * FROM user WHERE username = ? AND password = ?", (username, hashed_password))
-    user = cursor.fetchone()
+    
+    # Ambil role user jika password cocok
+    cursor.execute("SELECT role FROM user WHERE username = ? AND password = ?", (username, hashed_password))
+    data = cursor.fetchone()
     conn.close()
-    return user is not None
+
+    if data:
+        return data[0]
+    else:
+        return None
 
 def buat_user_default():
     conn = create_connection()

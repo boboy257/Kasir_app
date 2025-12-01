@@ -43,6 +43,9 @@ class LoginWindow(QMainWindow):
 
         # Fokus ke input username saat pertama kali dibuka
         self.input_username.setFocus()
+        
+        # [PERBAIKAN] Enter di Username -> Pindah ke Password
+        self.input_username.returnPressed.connect(self.input_password.setFocus)
 
         # Aktifkan tombol login saat tekan Enter di password
         self.input_password.returnPressed.connect(self.login)
@@ -58,20 +61,15 @@ class LoginWindow(QMainWindow):
             return
 
         # Cek login di database
-        if cek_login(username, password):
-            # Jika login berhasil
-            QMessageBox.information(self, "Login Berhasil", f"Selamat datang, {username}!")
-            
-            # Panggil callback jika login sukses
+        role = cek_login(username, password)
+        
+        if role:
+            # Login Berhasil
+            # Kirim username DAN role ke controller utama
             if self.on_login_success:
-                self.on_login_success(username)
-            
-            # Tutup jendela login
+                self.on_login_success(username, role)
             self.close()
         else:
-            # Jika login gagal
             QMessageBox.critical(self, "Login Gagal", "Username atau password salah.")
-            # Kosongkan input password
             self.input_password.clear()
-            # Fokus kembali ke input username
             self.input_username.setFocus()
