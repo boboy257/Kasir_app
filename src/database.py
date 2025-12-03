@@ -456,3 +456,36 @@ def hapus_produk_dengan_log(id_produk, username):
     conn.commit()
     conn.close()
     log_aktivitas_pengguna(username, "Hapus Produk", f"ID: {id_produk}")
+    
+def get_info_dashboard():
+    """Mengambil data untuk Dashboard: Omset Hari Ini, Total Transaksi, & Grafik 7 Hari"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    hari_ini = datetime.now().strftime("%Y-%m-%d")
+    
+    cursor.execute("""
+        SELECT SUM(total), COUNT(id) 
+        FROM transaksi 
+        WHERE substr(tanggal, 1, 10) = ?
+    """, (hari_ini,))
+    
+    row = cursor.fetchone()
+    omset_hari_ini = row[0] if row[0] else 0
+    transaksi_hari_ini = row[1] if row[1] else 0
+    
+    cursor.execute("""
+        SELECT substr(tanggal, 1, 10) as tgl, SUM(total) 
+        FROM transaksi 
+        GROUP BY tgl 
+        ORDER BY tgl DESC 
+        LIMIT 7
+    """)
+    
+    data_grafik = cursor.fetchall() 
+    
+    conn.close()
+    
+    data_grafik.reverse()
+    
+    return omset_hari_ini, transaksi_hari_ini, data_grafik
