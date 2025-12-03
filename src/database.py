@@ -344,37 +344,54 @@ def generate_semua_barcode_gambar():
     return hasil
 
 def semua_user():
+    """Ambil semua user (ID, Username, Role) - Password tidak perlu diambil"""
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username FROM user")
-    hasil = cursor.fetchall()
-    conn.close()
-    return hasil
+    try:
+        cursor.execute("SELECT id, username, role FROM user ORDER BY username ASC")
+        hasil = cursor.fetchall()
+        return hasil
+    except Exception as e:
+        print(f"Error ambil user: {e}")
+        return[]
+    finally:
+        conn.close()
 
-def tambah_user_baru(username, password):
+def tambah_user_baru(username, password, role="kasir"):
+    """Tambah user baru ke database"""
     conn = create_connection()
     cursor = conn.cursor()
     hashed_password = hash_password(password)
     try:
-        cursor.execute("INSERT INTO user (username, password) VALUES (?, ?)", (username, hashed_password))
+        cursor.execute("INSERT INTO user (username, password, role) VALUES (?,?, ?)", 
+                       (username, hashed_password, role))
         conn.commit()
-        conn.close()
         return True
-    except Exception:
-        conn.close()
+    except Exception as e:
+        print(f"Gagal tambah user: {e}")
         return False
+    finally:
+        conn.close()
 
-def update_user(id_user, username_baru, password_baru=None):
+def update_user(id_user, username_baru, password_baru=None, role_baru="kasir"):
+    """Update user (username, password, role) """
     conn = create_connection()
     cursor = conn.cursor()
-    if password_baru:
-        hashed_password = hash_password(password_baru)
-        cursor.execute("UPDATE user SET username = ?, password = ? WHERE id = ?", 
-                      (username_baru, hashed_password, id_user))
-    else:
-        cursor.execute("UPDATE user SET username = ? WHERE id = ?", (username_baru, id_user))
-    conn.commit()
-    conn.close()
+    
+    try:
+        if password_baru:
+            hashed_password = hash_password(password_baru)
+            cursor.execute("UPDATE user SET username = ?, password = ? WHERE id = ?, role = ? WHERE id = ?",
+                        (username_baru, hashed_password, role_baru, id_user))
+        else:
+            cursor.execute("UPDATE user SET username = ?, role = ? WHERE id = ?", 
+                           (username_baru, role_baru, id_user))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Gagal update user: {e}")
+    finally:
+        conn.close()
 
 def hapus_user(id_user):
     conn = create_connection()
