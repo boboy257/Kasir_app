@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QDialog, QFormLayout, QHeaderView, QAbstractItemView,
     QInputDialog
 )
+# [PENTING] Pastikan import ini ada
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt, QEvent
 from src.database import cari_produk_dari_barcode, create_connection, cari_produk_by_nama_partial, semua_produk
@@ -11,7 +12,7 @@ from src.config import NAMA_TOKO, ALAMAT_TOKO
 from src.cetak_struk import cetak_struk_pdf
 from datetime import datetime
 
-# --- KELAS 1: Dialog Pembayaran ---
+# --- CLASS DIALOG PEMBAYARAN ---
 class DialogPembayaran(QDialog):
     def __init__(self, total_belanja, parent=None):
         super().__init__(parent)
@@ -85,7 +86,7 @@ class DialogPembayaran(QDialog):
         else:
             self.input_uang.setFocus()
 
-# --- KELAS 2: Dialog Pencarian Barang ---
+# --- CLASS DIALOG CARI BARANG ---
 class DialogCariBarang(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -159,7 +160,7 @@ class DialogCariBarang(QDialog):
             self.selected_barcode = self.table.item(row, 0).text()
             self.accept()
 
-# --- KELAS UTAMA: Kasir Window ---
+# --- CLASS UTAMA KASIR ---
 class KasirWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -250,11 +251,8 @@ class KasirWindow(QMainWindow):
         self.btn_pending.setFixedSize(120, 60)
         self.btn_pending.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold;")
         self.btn_pending.clicked.connect(self.toggle_pending)
-        # [PERBAIKAN] Kita pakai Global Shortcut di bawah, jadi shortcut di tombol dimatikan saja agar tidak bentrok
-        # self.btn_pending.setShortcut("F6") <-- Hapus ini
         
         bottom_layout.addWidget(self.btn_pending) 
-        
         bottom_layout.addStretch()
         bottom_layout.addWidget(self.label_total)
         
@@ -271,36 +269,45 @@ class KasirWindow(QMainWindow):
         self.keranjang_pending = [] 
         self.total_transaksi = 0
 
-        # [PERBAIKAN UTAMA] Global Shortcut untuk F6 (Pending)
-        # Ini membuat F6 selalu jalan, tidak peduli fokus sedang di mana atau teks tombol berubah
         self.shortcut_pending = QShortcut(QKeySequence("F6"), self)
         self.shortcut_pending.activated.connect(self.toggle_pending)
-
+        
+        # [PENTING] Install Event Filter untuk ESC di window utama
+        self.installEventFilter(self)
 
     # --- EVENT FILTER ---
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
+            
+            # [PERBAIKAN UTAMA] ESCAPE -> Tutup Kasir
+            if event.key() == Qt.Key.Key_Escape:
+                # Cek jika keranjang ada isinya, konfirmasi dulu biar gak ke-close tidak sengaja
+                if self.keranjang_belanja:
+                    reply = QMessageBox.question(self, "Keluar", "Transaksi belum selesai. Yakin ingin keluar?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self.close()
+                else:
+                    self.close()
+                return True
+
             # 1. Input -> Panah Bawah -> Tabel
             if obj == self.barcode_input and event.key() == Qt.Key.Key_Down:
                 if self.table.rowCount() > 0:
                     self.table.setFocus()
                     self.table.selectRow(self.table.rowCount() - 1) 
                 return True
-            # 2. Tabel -> Esc -> Input
-            elif obj == self.table and event.key() == Qt.Key.Key_Escape:
-                self.barcode_input.setFocus()
-                return True
-            # 3. Tabel (Baris 0) -> Panah Atas -> Input
+            
+            # 2. Tabel -> Atas (Baris 0) -> Input
             elif obj == self.table and event.key() == Qt.Key.Key_Up:
                 current_row = self.table.currentRow()
                 if current_row == 0: 
                     self.barcode_input.setFocus() 
                     return True
+                    
         return super().eventFilter(obj, event)
 
     def toggle_pending(self):
         """Logika Toggle Pending/Recall yang Aman"""
-        # Skenario 1: Simpan ke Pending
         if self.keranjang_belanja:
             if self.keranjang_pending:
                 QMessageBox.warning(self, "Pending Penuh", "Sudah ada transaksi pending.")
@@ -317,7 +324,6 @@ class KasirWindow(QMainWindow):
             
             self.barcode_input.setFocus()
 
-        # Skenario 2: Recall dari Pending
         elif self.keranjang_pending:
             self.keranjang_belanja = list(self.keranjang_pending)
             self.keranjang_pending = []
@@ -327,7 +333,6 @@ class KasirWindow(QMainWindow):
             
             self.barcode_input.setFocus()
         
-        # Skenario 3: Kosong
         else:
             QMessageBox.information(self, "Info", "Tidak ada transaksi pending.")
             self.barcode_input.setFocus()
@@ -492,7 +497,7 @@ class KasirWindow(QMainWindow):
                 if platform.system() == 'Windows': os.startfile(filepath)
             except Exception as e:
                 # QMessageBox.warning(self, "Gagal Cetak", str(e))
-                pass # Biar tidak muncul error kalau reportlab belum ada
+                pass 
 
             QMessageBox.information(self, "Berhasil", f"Bayar: Rp {int(uang_diterima):,}\nKembali: Rp {int(kembalian):,}")
             self.reset_keranjang()

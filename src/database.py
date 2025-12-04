@@ -500,9 +500,28 @@ def get_info_dashboard():
     """)
     
     data_grafik = cursor.fetchall() 
-    
     conn.close()
-    
     data_grafik.reverse()
-    
     return omset_hari_ini, transaksi_hari_ini, data_grafik
+
+def ambil_laporan_filter(start_date, end_date):
+    """
+    Ambil laporan berdasarkan rentang tanggal (Format: YYYY-MM-DD)
+    Contoh: start='2023-10-01', end='2023-10-31'
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    # Kita gunakan fungsi date() dari SQLite untuk membandingkan tanggal saja (abaikan jam)
+    # Query ini mengambil data yang tanggalnya ANTARA start DAN end (inklusif)
+    cursor.execute("""
+        SELECT t.tanggal, dt.produk_nama, dt.jumlah, dt.harga, dt.diskon, dt.subtotal
+        FROM transaksi t
+        JOIN detail_transaksi dt ON t.id = dt.transaksi_id
+        WHERE date(t.tanggal) BETWEEN ? AND ?
+        ORDER BY t.tanggal DESC
+    """, (start_date, end_date))
+    
+    hasil = cursor.fetchall()
+    conn.close()
+    return hasil

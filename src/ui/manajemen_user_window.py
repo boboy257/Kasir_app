@@ -12,59 +12,42 @@ class ManajemenUserWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Manajemen Pengguna (Admin Only)")
-        self.setGeometry(100, 100, 900, 550)
+        self.setGeometry(100, 100, 950, 550) # Sedikit diperlebar agar info muat
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # --- STYLING (PERBAIKAN VISUAL FOKUS) ---
+        # --- STYLING DARK MODE ---
         central_widget.setStyleSheet("""
             QWidget { 
                 background-color: #121212; 
                 color: #e0e0e0; 
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Segoe UI', sans-serif; 
                 font-size: 13px;
                 outline: none;
             }
             QLabel { font-size: 14px; }
             
-            /* Input & Combo */
             QLineEdit, QComboBox { 
-                background-color: #1E1E1E; 
-                border: 1px solid #333; 
-                border-radius: 5px; 
-                padding: 10px; 
-                color: white;
+                background-color: #1E1E1E; border: 1px solid #333; 
+                border-radius: 5px; padding: 10px; color: white;
             }
-            /* FOKUS JELAS: Border Biru Terang */
             QLineEdit:focus, QComboBox:focus {
-                border: 2px solid #29b6f6; 
-                background-color: #252525;
+                border: 2px solid #29b6f6; background-color: #252525;
             }
             
-            /* Tabel */
             QTableWidget {
-                background-color: #1E1E1E;
-                gridline-color: #333;
-                border: 1px solid #333;
-                border-radius: 5px;
+                background-color: #1E1E1E; gridline-color: #333;
+                border: 1px solid #333; border-radius: 5px;
             }
             QHeaderView::section {
-                background-color: #252525;
-                color: white;
-                padding: 8px;
-                border: none;
-                font-weight: bold;
+                background-color: #252525; color: white;
+                padding: 8px; border: none; font-weight: bold;
             }
-            /* Baris Terpilih: Hijau Redup */
             QTableWidget::item:selected {
-                background-color: #2E7D32;
-                color: white;
+                background-color: #00E5FF; color: #000000;
             }
-            /* FOKUS TABEL: Border Putih di sekeliling tabel saat aktif */
-            QTableWidget:focus {
-                border: 2px solid #29b6f6;
-            }
+            QTableWidget:focus { border: 2px solid #29b6f6; }
         """)
         
         layout = QHBoxLayout(central_widget)
@@ -111,7 +94,6 @@ class ManajemenUserWindow(QMainWindow):
         # Tombol Aksi
         btn_layout = QHBoxLayout()
         
-        # [PERBAIKAN VISUAL] Border Tebal saat Fokus
         self.btn_simpan = QPushButton("Simpan Data")
         self.btn_simpan.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_simpan.setStyleSheet("""
@@ -120,11 +102,7 @@ class ManajemenUserWindow(QMainWindow):
                 padding: 12px; border-radius: 5px; font-weight: bold; 
             }
             QPushButton:hover { background-color: #45a049; }
-            /* FOKUS SANGAT JELAS: Border Kuning Terang */
-            QPushButton:focus { 
-                border: 3px solid #FFEB3B; 
-                background-color: #43A047;
-            }
+            QPushButton:focus { border: 3px solid #FFEB3B; background-color: #43A047; }
         """)
         self.btn_simpan.clicked.connect(self.simpan_user)
         self.btn_simpan.installEventFilter(self) 
@@ -137,10 +115,7 @@ class ManajemenUserWindow(QMainWindow):
                 padding: 12px; border-radius: 5px; 
             }
             QPushButton:hover { background-color: #616161; }
-            /* FOKUS SANGAT JELAS: Border Kuning Terang */
-            QPushButton:focus { 
-                border: 3px solid #FFEB3B; 
-            }
+            QPushButton:focus { border: 3px solid #FFEB3B; }
         """)
         self.btn_batal.clicked.connect(self.bersihkan_form)
         self.btn_batal.installEventFilter(self) 
@@ -151,8 +126,15 @@ class ManajemenUserWindow(QMainWindow):
         
         form_layout.addStretch()
         
-        # Update Info Navigasi
-        lbl_info = QLabel("💡 Navigasi:\n- Enter di Tombol: Eksekusi\n- Di Tabel: F2 (Edit), Del (Hapus)\n- Ctrl+atas: Loncat Ke Form\n- Ctrl+Bawah: Loncat ke Tabel")
+        # [DIPULIHKAN & DILENGKAPI] Label Instruksi Navigasi
+        lbl_info = QLabel(
+            "💡 <b>Tips Keyboard:</b><br>"
+            "- <b>Enter</b>: Pindah Kolom / Simpan<br>"
+            "- <b>Ctrl + Bawah</b>: Loncat ke Tabel<br>"
+            "- <b>Ctrl + Atas</b>: Loncat ke Username<br>"
+            "- <b>F2</b>: Edit User | <b>Del</b>: Hapus User<br>"
+            "- <b>ESC</b>: Tutup Menu"
+        )
         lbl_info.setWordWrap(True)
         lbl_info.setStyleSheet("color: #888; font-size: 11px; border: none; font-style: italic; background: transparent;")
         form_layout.addWidget(lbl_info)
@@ -185,15 +167,16 @@ class ManajemenUserWindow(QMainWindow):
 
         self.muat_user()
         self.user_yang_diedit = None 
+        
+        self.installEventFilter(self)
 
     # --- LOGIKA KEYBOARD ---
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
             
-            # GLOBAL SHORTCUTS
+            # [SHORTCUT GLOBAL]
             if event.key() == Qt.Key.Key_Escape:
-                self.input_username.setFocus()
-                self.input_username.selectAll()
+                self.close()
                 return True
 
             if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Down:
@@ -207,12 +190,13 @@ class ManajemenUserWindow(QMainWindow):
                 self.input_username.selectAll()
                 return True
 
-            # 1. INPUT FIELDS
+            # 1. INPUT USERNAME
             if obj == self.input_username:
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Down):
                     self.input_password.setFocus()
                     return True
             
+            # 2. INPUT PASSWORD
             elif obj == self.input_password:
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Down):
                     self.combo_role.setFocus()
@@ -222,6 +206,7 @@ class ManajemenUserWindow(QMainWindow):
                     self.input_username.setFocus()
                     return True
 
+            # 3. COMBO BOX ROLE
             elif obj == self.combo_role:
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Down):
                     self.btn_simpan.setFocus()
@@ -230,9 +215,8 @@ class ManajemenUserWindow(QMainWindow):
                     self.input_password.setFocus()
                     return True
 
-            # 2. TOMBOL AKSI (PERBAIKAN: ENTER BERFUNGSI)
+            # 4. TOMBOL SIMPAN
             elif obj == self.btn_simpan:
-                # [PERBAIKAN] Enter sekarang menekan tombol
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     self.btn_simpan.click()
                     return True
@@ -244,8 +228,8 @@ class ManajemenUserWindow(QMainWindow):
                         self.table_user.selectRow(0)
                     return True
 
+            # 5. TOMBOL RESET
             elif obj == self.btn_batal:
-                # [PERBAIKAN] Enter sekarang menekan tombol
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     self.btn_batal.click()
                     return True
@@ -257,26 +241,20 @@ class ManajemenUserWindow(QMainWindow):
                         self.table_user.selectRow(0)
                     return True
 
-            # 3. TABEL USER (PERBAIKAN: F2 EDIT, DELETE HAPUS)
+            # 6. TABEL USER
             elif obj == self.table_user:
-                # Shortcut F2 -> Edit Baris Terpilih
                 if event.key() == Qt.Key.Key_F2:
                     self.edit_current_row()
                     return True
-                
-                # Shortcut Delete -> Hapus Baris Terpilih
                 elif event.key() == Qt.Key.Key_Delete:
                     self.delete_current_row()
                     return True
-
-                # Panah Atas di Baris 0 -> Balik ke Simpan
                 if event.key() == Qt.Key.Key_Up and self.table_user.currentRow() == 0:
                     self.btn_simpan.setFocus() 
                     return True
 
         return super().eventFilter(obj, event)
 
-    # --- HELPER KEYBOARD ACTIONS ---
     def edit_current_row(self):
         row = self.table_user.currentRow()
         if row >= 0:
@@ -305,7 +283,6 @@ class ManajemenUserWindow(QMainWindow):
             
             self.table_user.setItem(row, 2, role_item)
             
-            # Tombol Mouse tetap ada (opsional)
             btn_container = QWidget()
             btn_container.setStyleSheet("background: transparent; outline: none; border: none;") 
             btn_layout = QHBoxLayout(btn_container)
@@ -385,7 +362,6 @@ class ManajemenUserWindow(QMainWindow):
                 
                 self.user_yang_diedit = id_user
                 self.btn_simpan.setText("Update User")
-                # Indikator warna Orange saat mode Edit
                 self.btn_simpan.setStyleSheet("""
                     QPushButton { background-color: #FF9800; color: white; border: none; padding: 12px; border-radius: 5px; font-weight: bold; outline: none; }
                     QPushButton:focus { border: 3px solid #FFF; }
@@ -407,7 +383,6 @@ class ManajemenUserWindow(QMainWindow):
         self.combo_role.setCurrentIndex(0)
         self.user_yang_diedit = None
         self.btn_simpan.setText("Simpan Data")
-        # Kembali ke warna Hijau
         self.btn_simpan.setStyleSheet("""
             QPushButton { background-color: #4CAF50; color: white; border: none; padding: 12px; border-radius: 5px; font-weight: bold; outline: none; }
             QPushButton:focus { border: 3px solid #FFEB3B; }

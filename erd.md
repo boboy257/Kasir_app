@@ -1,39 +1,42 @@
-# Entity Relationship Diagram (ERD) - Aplikasi Kasir
+erDiagram
+    USER {
+        int id PK
+        string username
+        string password "Hash SHA256"
+        string role "admin / kasir"
+    }
 
-## Tabel Utama
+    PRODUK {
+        int id PK
+        string barcode "Unique"
+        string nama
+        float harga
+        int stok
+    }
 
-### 1. user
-- id (PK)
-- username (UNIQUE)
-- password
+    TRANSAKSI {
+        int id PK
+        string tanggal "YYYY-MM-DD HH:MM:SS"
+        float total
+    }
 
-### 2. produk  
-- id (PK)
-- barcode (UNIQUE)
-- nama
-- harga
-- stok
+    DETAIL_TRANSAKSI {
+        int id PK
+        int transaksi_id FK "Relasi ke Transaksi"
+        string produk_nama
+        int jumlah
+        float harga
+        float diskon "Baru"
+        float subtotal
+    }
 
-### 3. transaksi
-- id (PK)
-- tanggal
-- total
+    LOG_AKTIVITAS {
+        int id PK
+        string username
+        string aktivitas
+        string tanggal
+        string detail
+    }
 
-### 4. detail_transaksi
-- id (PK)
-- transaksi_id (FK → transaksi.id)
-- produk_nama
-- jumlah
-- harga
-- subtotal
-
-### 5. log_aktivitas
-- id (PK)
-- username
-- aktivitas
-- tanggal
-- detail
-
-## Relasi
-- transaksi.id → detail_transaksi.transaksi_id
-- log_aktivitas.username → user.username
+    %% RELASI ANTAR TABEL
+    TRANSAKSI ||--|{ DETAIL_TRANSAKSI : "memuat banyak item"}

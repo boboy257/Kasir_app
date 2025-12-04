@@ -11,6 +11,7 @@ from src.ui.stok_rendah_window import StokRendahWindow
 from src.ui.generate_barcode_window import GenerateBarcodeWindow
 from src.ui.manajemen_user_window import ManajemenUserWindow
 from src.ui.log_aktivitas_window import LogAktivitasWindow
+from src.ui.pengaturan_window import PengaturanWindow 
 from src.database import get_info_dashboard
 
 class MainWindow(QMainWindow):
@@ -32,7 +33,19 @@ class MainWindow(QMainWindow):
         self.lbl_judul = QLabel("Dashboard")
         self.lbl_judul.setStyleSheet("color: #ffffff; font-size: 24px; font-weight: bold;")
         
-        # --- TOMBOL LOGOUT (HEADER) ---
+        # [BARU] Tombol Pengaturan
+        self.btn_settings = QPushButton("⚙️ Pengaturan")
+        self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_settings.setFixedSize(120, 40)
+        self.btn_settings.setStyleSheet("""
+            QPushButton { background-color: #607D8B; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:focus { border: 2px solid #B0BEC5; }
+        """)
+        self.btn_settings.clicked.connect(self.buka_pengaturan)
+        self.btn_settings.setAutoDefault(True)
+        self.btn_settings.setProperty("is_header_btn", True)
+
+        # Tombol Logout
         self.btn_logout = QPushButton("Logout")
         self.btn_logout.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_logout.setFixedSize(100, 40)
@@ -41,10 +54,8 @@ class MainWindow(QMainWindow):
             QPushButton:focus { border: 2px solid #ff5252; }
         """)
         
-        if on_logout:
-            self.btn_logout.clicked.connect(on_logout)
-        else:
-            self.btn_logout.clicked.connect(self.close)
+        if on_logout: self.btn_logout.clicked.connect(on_logout)
+        else: self.btn_logout.clicked.connect(self.close)
             
         self.btn_logout.setAutoDefault(True)
         self.btn_logout.installEventFilter(self)
@@ -52,7 +63,8 @@ class MainWindow(QMainWindow):
 
         header_layout.addWidget(self.lbl_judul)
         header_layout.addStretch()
-        header_layout.addWidget(self.btn_logout) # Logout masuk di Header (Atas)
+        header_layout.addWidget(self.btn_settings) # Add Settings
+        header_layout.addWidget(self.btn_logout)
         main_layout.addLayout(header_layout)
 
         # 2. DASHBOARD AREA
@@ -141,11 +153,8 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(grid_container)
         
-        # [PENTING] Variabel Ingatan Navigasi
         self.last_focused_index = 0 
-
         QTimer.singleShot(100, self.lazy_load_dashboard)
-
         if self.buttons: self.buttons[0].setFocus()
 
     def set_user_role(self, username, role):
@@ -156,14 +165,18 @@ class MainWindow(QMainWindow):
 
         if role == "kasir":
             self.dashboard_container.setVisible(False)
+            # [PERBAIKAN] Sembunyikan tombol pengaturan untuk kasir
+            self.btn_settings.setVisible(False)
+            
             tombol_dilarang = [1, 2, 3, 5, 6, 7]
             for index in tombol_dilarang:
                 self.buttons[index].setVisible(False)
         else:
             self.dashboard_container.setVisible(True)
+            self.btn_settings.setVisible(True) # Tampilkan untuk admin
             for btn in self.buttons:
                 btn.setVisible(True)
-            # Data akan di-refresh oleh lazy_load_dashboard
+            self.refresh_dashboard()
 
     def lazy_load_dashboard(self):
         if hasattr(self, 'current_role') and self.current_role == 'kasir': return
@@ -210,45 +223,28 @@ class MainWindow(QMainWindow):
     def refresh_dashboard(self):
         self.lazy_load_dashboard()
 
-    # --- NAVIGASI KEYBOARD PINTAR (DENGAN INGATAN) ---
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
             
             current_index = obj.property("index")
             is_logout = obj.property("is_logout")
 
-            # --- SKENARIO A: SEDANG DI TOMBOL GRID ---
             if current_index is not None:
-                # [BARU] Simpan posisi ini ke ingatan
-                self.last_focused_index = current_index
-                
                 next_index = None
-                
-                # 1. KANAN
                 if event.key() == Qt.Key.Key_Right:
-                    if (current_index + 1) < len(self.buttons): 
-                        if self.buttons[current_index + 1].isVisible(): next_index = current_index + 1
-                
-                # 2. KIRI
+                    if (current_index + 1) < len(self.buttons) and self.buttons[current_index + 1].isVisible(): next_index = current_index + 1
                 elif event.key() == Qt.Key.Key_Left:
-                    if (current_index - 1) >= 0:
-                        if self.buttons[current_index - 1].isVisible(): next_index = current_index - 1
-                
-                # 3. BAWAH
+                    if (current_index - 1) >= 0 and self.buttons[current_index - 1].isVisible(): next_index = current_index - 1
                 elif event.key() == Qt.Key.Key_Down:
                     target = current_index + 4
                     if current_index >= 4 or (target < len(self.buttons) and not self.buttons[target].isVisible()): 
                         self.btn_logout.setFocus(); return True
                     elif target < len(self.buttons): next_index = target
-                
-                # 4. ATAS
                 elif event.key() == Qt.Key.Key_Up:
                     target = current_index - 4
                     if target >= 0 and self.buttons[target].isVisible(): next_index = target
                     elif target < 0: 
-                        self.btn_logout.setFocus(); return True # Loncat ke Logout
-                
-                # 5. ENTER
+                        self.btn_logout.setFocus(); return True 
                 elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     obj.click(); return True
 
@@ -256,28 +252,24 @@ class MainWindow(QMainWindow):
                     self.buttons[next_index].setFocus()
                     return True
 
-            # --- SKENARIO B: SEDANG DI TOMBOL LOGOUT ---
             elif is_logout:
-                # [PERBAIKAN] Tekan BAWAH -> Kembali ke tombol terakhir yang diingat
                 if event.key() == Qt.Key.Key_Down:
-                    # Cek apakah tombol terakhir masih terlihat (misal habis ganti role)?
+                    # Kembali ke tombol grid terakhir
                     if self.buttons[self.last_focused_index].isVisible():
                         self.buttons[self.last_focused_index].setFocus()
-                        return True
                     else:
-                        # Kalau tombol ingatan hilang, cari tombol visible pertama dari awal
-                        for i in range(len(self.buttons)):
-                            if self.buttons[i].isVisible():
-                                self.buttons[i].setFocus()
-                                return True
-                
-                # ENTER
+                        self.buttons[0].setFocus()
+                    return True
                 elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     obj.click(); return True
 
         return super().eventFilter(obj, event)
 
     # --- HANDLERS ---
+    def buka_pengaturan(self):
+        self.pengaturan_window = PengaturanWindow()
+        self.pengaturan_window.show()
+
     def buka_kasir(self):
         self.kasir_window = KasirWindow()
         self.kasir_window.set_current_user(self.current_user)
