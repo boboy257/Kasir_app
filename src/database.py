@@ -167,16 +167,78 @@ def import_produk_dari_csv(csv_path):
     conn = create_connection()
     cursor = conn.cursor()
 
-    with open(csv_path, 'r', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            cursor.execute("""
-                INSERT OR REPLACE INTO produk (id, barcode, nama, harga, stok)
-                VALUES (?, ?, ?, ?)
-            """, (int(row["id"]), row["barcode"], row["nama"], float(row["harga"]), int(row["stok"])))
+    try:
+        with open(csv_path, 'r', encoding='utf-8-sig') as csvfile: # utf-8-sig handle BOM Excel
+            # Gunakan DictReader agar tidak pusing urutan kolom
+            reader = csv.DictReader(csvfile)
+            
+            # Normalisasi nama header (hilangkan spasi/huruf besar)
+            # Biar user nulis "Nama Produk" atau "nama" tetap terbaca
+            fieldnames = [x.lower().strip() for x in reader.fieldnames]
+            
+            count_sukses = 0
+            
+            for row in reader:
+                # Bersihkan spasi di key dictionary row
+                clean_row = {k.lower().strip(): v for k, v in row.items()}
+                
+                # Ambil data wajib (Barcode & Nama)
+                # Kita coba berbagai variasi nama kolom biar user gak bingung
+                barcode = clean_row.get("barcode", clean_row.get("kode", "")).strip()
+                nama = clean_row.get("nama", clean_row.get("nama produk", clean_row.get("product", ""))).strip()
+                
+                # Default nilai jika kosong
+                harga_str = clean_row.get("harga", "0").replace("Rp", "").replace(".", "").replace(",", "").strip()
+                stok_str = clean_row.get("stok", "0").strip()
+                id_str = clean_row.get("id", "").strip()
 
-    conn.commit()
-    conn.close()
+                if not barcode or not nama:
+                    continue # Skip baris kosong/rusak
+
+                try:
+                    harga = float(harga_str) if harga_str else 0
+                    stok = int(stok_str) if stok_str else 0
+                except ValueError:
+                    continue # Skip jika harga/stok bukan angka
+
+                # LOGIKA PINTAR:
+                # Jika ada ID (dari hasil export aplikasi ini) -> Pakai ID untuk update/replace
+                # Jika TIDAK ada ID (user bikin manual di Excel) -> Insert baru (ID otomatis)
+                
+                if id_str:
+                    # Skenario 1: Ada ID (Restore Data Lengkap)
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO produk (id, barcode, nama, harga, stok)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (int(id_str), barcode, nama, harga, stok))
+                else:
+                    # Skenario 2: Tidak ada ID (Import Barang Baru dari Excel)
+                    # Kita cek dulu apakah barcode sudah ada?
+                    cursor.execute("SELECT id FROM produk WHERE barcode = ?", (barcode,))
+                    existing = cursor.fetchone()
+                    
+                    if existing:
+                        # Update produk lama
+                        cursor.execute("""
+                            UPDATE produk SET nama=?, harga=?, stok=? WHERE barcode=?
+                        """, (nama, harga, stok, barcode))
+                    else:
+                        # Insert produk baru
+                        cursor.execute("""
+                            INSERT INTO produk (barcode, nama, harga, stok)
+                            VALUES (?, ?, ?, ?)
+                        """, (barcode, nama, harga, stok))
+                
+                count_sukses += 1
+
+        conn.commit()
+        print(f"Import selesai. {count_sukses} produk diproses.")
+        
+    except Exception as e:
+        print(f"Error import CSV: {e}")
+        raise e # Lempar error ke UI agar muncul popup
+    finally:
+        conn.close()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
