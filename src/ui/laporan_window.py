@@ -53,7 +53,7 @@ class LaporanWindow(QMainWindow):
             QPushButton:hover { background-color: #333; }
             
             /* FOKUS DEFAULT (Putih) */
-            QPushButton:focus { border: 2px solid #ffffff; background-color: #424242; }
+            QPushButton:focus { border: 1px solid #ffffff; background-color: #424242; }
             
             QLabel { font-weight: bold; color: #bbb; }
         """)
@@ -92,7 +92,7 @@ class LaporanWindow(QMainWindow):
         self.btn_filter.setStyleSheet("""
             QPushButton { background-color: #2196F3; color: white; border: none; }
             QPushButton:hover { background-color: #1976D2; }
-            QPushButton:focus { border: 3px solid #fff; }
+            QPushButton:focus { border: 2px solid #fff; }
         """)
         self.btn_filter.clicked.connect(self.muat_laporan)
         self.btn_filter.installEventFilter(self)
@@ -101,7 +101,7 @@ class LaporanWindow(QMainWindow):
         self.btn_reset = QPushButton("Reset")
         self.btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reset.setStyleSheet("""
-            QPushButton:focus { border: 3px solid #FF9800; color: #FF9800; } /* Fokus Orange */
+            QPushButton:focus { border: 2px solid #FF9800; color: #FF9800; } /* Fokus Orange */
         """)
         self.btn_reset.clicked.connect(self.reset_filter)
         self.btn_reset.installEventFilter(self)
@@ -118,7 +118,7 @@ class LaporanWindow(QMainWindow):
         self.btn_csv = QPushButton("Export CSV")
         self.btn_csv.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_csv.setStyleSheet("""
-            QPushButton:focus { border: 3px solid #00E676; color: #00E676; } /* Fokus Hijau */
+            QPushButton:focus { border: 2px solid #00E676; color: #00E676; } /* Fokus Hijau */
         """)
         self.btn_csv.clicked.connect(self.export_csv)
         self.btn_csv.installEventFilter(self)
@@ -126,7 +126,7 @@ class LaporanWindow(QMainWindow):
         self.btn_pdf = QPushButton("Export PDF")
         self.btn_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf.setStyleSheet("""
-            QPushButton:focus { border: 3px solid #FF5252; color: #FF5252; } /* Fokus Merah */
+            QPushButton:focus { border: 2px solid #FF5252; color: #FF5252; } /* Fokus Merah */
         """)
         self.btn_pdf.clicked.connect(self.export_pdf)
         self.btn_pdf.installEventFilter(self)
