@@ -483,24 +483,40 @@ def log_aktivitas_pengguna(username, aktivitas, detail=None):
     conn.commit()
     conn.close()
 
-def ambil_log_aktivitas(username=None, limit=50):
+def ambil_log_aktivitas(username=None, keyword=None, start_date=None, end_date=None):
+    """
+    Ambil log dengan filter lengkap:
+    - username: Filter per user
+    - keyword: Cari teks di Aktivitas / Detail
+    - start_date & end_date: Rentang tanggal (YYYY-MM-DD)
+    """
     conn = create_connection()
     cursor = conn.cursor()
-    if username:
-        cursor.execute("""
-            SELECT username, aktivitas, tanggal, detail
-            FROM log_aktivitas
-            WHERE username = ?
-            ORDER BY tanggal DESC
-            LIMIT ?
-        """, (username, limit))
-    else:
-        cursor.execute("""
-            SELECT username, aktivitas, tanggal, detail
-            FROM log_aktivitas
-            ORDER BY tanggal DESC
-            LIMIT ?
-        """, (limit,))
+    
+    query = "SELECT username, aktivitas, tanggal, detail FROM log_aktivitas WHERE 1=1"
+    params = []
+    
+    # Filter User
+    if username and username != "Semua Pengguna":
+        query += " AND username = ?"
+        params.append(username)
+    
+    # Filter Tanggal
+    if start_date and end_date:
+        query += " AND date(tanggal) BETWEEN ? AND ?"
+        params.append(start_date)
+        params.append(end_date)
+        
+    # Filter Keyword (Pencarian Teks)
+    if keyword:
+        query += " AND (aktivitas LIKE ? OR detail LIKE ?)"
+        keyword_param = f"%{keyword}%"
+        params.append(keyword_param)
+        params.append(keyword_param)
+        
+    query += " ORDER BY tanggal DESC LIMIT 500" # Batasi 500 baris terakhir biar ringan
+    
+    cursor.execute(query, tuple(params))
     hasil = cursor.fetchall()
     conn.close()
     return hasil
