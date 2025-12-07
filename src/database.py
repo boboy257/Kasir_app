@@ -3,7 +3,7 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 import csv
-import hashlib
+import bcrypt
 import os
 from barcode import Code128
 from barcode.writer import ImageWriter
@@ -241,8 +241,54 @@ def import_produk_dari_csv(csv_path):
         conn.close()
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    """
+    Hash password menggunakan bcrypt dengan salt otomatis.
+    Return: String hash yang bisa langsung disimpan di database.
+    """
+def hash_password(password):
+    # Mengembalikan string hash bcrypt
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8') # Simpan sebagai string di DB
 
+def verify_password(password, hashed_password):
+    """
+    Verifikasi password dengan hash yang tersimpan.
+    Return: True jika cocok, False jika tidak.
+    """
+    try:
+        password_bytes = password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception as e:
+        print(f"Error verify password: {e}")
+        return False
+
+def cek_login(username, password):
+    """
+    Cek apakah username dan password benar.
+    Return: role (admin/kasir) jika berhasil, None jika gagal.
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    # Ambil password hash dari database
+    cursor.execute("SELECT password, role FROM user WHERE username = ?", (username,))
+    data = cursor.fetchone()
+    conn.close()
+
+    if data:
+        stored_hash = data[0]
+        role = data[1]
+        
+        # Verifikasi password
+        if verify_password(password, stored_hash):
+            return role
+        else:
+            return None
+    else:
+        return None
+    
 def tambah_user(username, password):
     conn = create_connection()
     cursor = conn.cursor()
@@ -255,22 +301,6 @@ def tambah_user(username, password):
     except Exception:
         conn.close()
         return False
-
-def cek_login(username, password):
-    """Cek apakah username dan password benar"""
-    conn = create_connection()
-    cursor = conn.cursor()
-    hashed_password = hash_password(password)
-    
-    # Ambil role user jika password cocok
-    cursor.execute("SELECT role FROM user WHERE username = ? AND password = ?", (username, hashed_password))
-    data = cursor.fetchone()
-    conn.close()
-
-    if data:
-        return data[0]
-    else:
-        return None
 
 def buat_user_default():
     conn = create_connection()
