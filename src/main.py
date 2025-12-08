@@ -51,8 +51,13 @@ class AppController:
         # Setup Database
         create_tables()
         buat_user_default()
+        from src.database import enable_wal_mode
+        enable_wal_mode()
         backup_database_harian()
         
+        # Backup Otomatis
+        from src.scheduler import start_scheduler
+        start_scheduler()
         # Tampilkan Login
         self.show_login_first_time()
         

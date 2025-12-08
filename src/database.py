@@ -132,19 +132,110 @@ def semua_produk():
     conn.close()
     return produk
 
-# === Fungsi-fungsi Database Lainnya (Backup, User, dll) Tetap Sama ===
-
 def backup_database():
+    """
+    Backup database dengan aman menggunakan SQLite Backup API.
+    Aman dijalankan saat aplikasi sedang operasional.
+    """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = Path(f"data/backup_pos_{timestamp}.db")
-    backup_path.parent.mkdir(exist_ok=True)
-    shutil.copy(DB_PATH, backup_path)
-    return backup_path
+    backup_folder = Path("data/backup")
+    backup_folder.mkdir(exist_ok=True)
+    
+    backup_path = backup_folder / f"backup_pos_{timestamp}.db"
+    
+    try:
+        source_conn = sqlite3.connect(DB_PATH)
+        backup_conn = sqlite3.connect(backup_path)
+        
+        # Gunakan API backup SQLite (aman!)
+        with backup_conn:
+            source_conn.backup(backup_conn)
+        
+        backup_conn.close()
+        source_conn.close()
+        
+        print(f"✅ Backup berhasil: {backup_path}")
+        return backup_path
+        
+    except Exception as e:
+        print(f"❌ Error backup: {e}")
+        return None
+
+def backup_database_harian():
+    """
+    Backup harian otomatis (1 file per hari).
+    """
+    if not DB_PATH.exists():
+        return None
+    
+    backup_folder = Path("data/backup")
+    backup_folder.mkdir(exist_ok=True)
+    
+    tanggal_hari_ini = datetime.now().strftime("%Y%m%d")
+    backup_path = backup_folder / f"pos_backup_{tanggal_hari_ini}.db"
+    
+    if backup_path.exists():
+        return None
+    
+    try:
+        source_conn = sqlite3.connect(DB_PATH)
+        backup_conn = sqlite3.connect(backup_path)
+        
+        with backup_conn:
+            source_conn.backup(backup_conn)
+        
+        backup_conn.close()
+        source_conn.close()
+        
+        print(f"✅ Backup harian: {backup_path}")
+        return backup_path
+        
+    except Exception as e:
+        print(f"❌ Error backup harian: {e}")
+        return None
+
+def backup_database_otomatis():
+    """Alias untuk backup_database()"""
+    return backup_database()
 
 def restore_database(backup_path):
     shutil.copy(backup_path, DB_PATH)
     print(f"Database berhasil dipulihkan dari {backup_path}")
 
+def enable_wal_mode():
+    """
+    Enable WAL (Write-Ahead Logging) mode untuk performa multi-user.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Cek mode saat ini
+        cursor.execute("PRAGMA journal_mode")
+        current_mode = cursor.fetchone()[0]
+        
+        if current_mode.upper() != "WAL":
+            # Set WAL mode
+            cursor.execute("PRAGMA journal_mode=WAL")
+            result = cursor.fetchone()
+            new_mode = result[0] if result else "unknown"
+            
+            # Optimasi WAL
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA wal_autocheckpoint=1000")
+            
+            conn.commit()
+            print(f"✅ WAL mode aktif: {current_mode} → {new_mode}")
+        else:
+            print("ℹ️  WAL mode sudah aktif")
+        
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error enable WAL: {e}")
+        return False
+    
 def export_produk_ke_csv():
     conn = create_connection()
     cursor = conn.cursor()
@@ -346,28 +437,6 @@ def update_stok_produk(id_produk, stok_baru):
     conn.commit()
     conn.close()
 
-def backup_database_otomatis():
-    if not DB_PATH.exists():
-        return
-    backup_folder = Path("data/backup")
-    backup_folder.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = backup_folder / f"pos_backup_{timestamp}.db"
-    shutil.copy(DB_PATH, backup_path)
-    return backup_path
-
-def backup_database_harian():
-    if not DB_PATH.exists():
-        return
-    backup_folder = Path("data/backup")
-    backup_folder.mkdir(exist_ok=True)
-    tanggal_hari_ini = datetime.now().strftime("%Y%m%d")
-    backup_path = backup_folder / f"pos_backup_{tanggal_hari_ini}.db"
-    if backup_path.exists():
-        return
-    shutil.copy(DB_PATH, backup_path)
-    return backup_path
-
 def cek_produk_stok_rendah(batas_stok=5):
     conn = create_connection()
     cursor = conn.cursor()
@@ -466,22 +535,42 @@ def tambah_user_baru(username, password, role="kasir"):
         conn.close()
 
 def update_user(id_user, username_baru, password_baru=None, role_baru="kasir"):
-    """Update user (username, password, role) """
+    """
+    Update data user (username, password, role).
+    
+    Args:
+        id_user (int): ID user yang akan diupdate
+        username_baru (str): Username baru
+        password_baru (str, optional): Password baru. None jika tidak diganti.
+        role_baru (str): Role baru ('admin' atau 'kasir'). Default 'kasir'.
+    
+    Returns:
+        bool: True jika berhasil, False jika gagal
+    """
     conn = create_connection()
     cursor = conn.cursor()
     
     try:
         if password_baru:
             hashed_password = hash_password(password_baru)
-            cursor.execute("UPDATE user SET username = ?, password = ? WHERE id = ?, role = ? WHERE id = ?",
-                        (username_baru, hashed_password, role_baru, id_user))
+            cursor.execute(
+                "UPDATE user SET username = ?, password = ?, role = ? WHERE id = ?",
+                (username_baru, hashed_password, role_baru, id_user)
+            )
         else:
-            cursor.execute("UPDATE user SET username = ?, role = ? WHERE id = ?", 
-                           (username_baru, role_baru, id_user))
+            cursor.execute(
+                "UPDATE user SET username = ?, role = ? WHERE id = ?",
+                (username_baru, role_baru, id_user)
+            )
+        
         conn.commit()
         return True
+        
     except Exception as e:
-        print(f"Gagal update user: {e}")
+        conn.rollback()
+        print(f"Error update user: {e}")
+        return False
+        
     finally:
         conn.close()
 
