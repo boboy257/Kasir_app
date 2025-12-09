@@ -46,6 +46,7 @@ def create_tables():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS transaksi (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            no_faktur TEXT UNIQUE,
             tanggal TEXT NOT NULL,
             total REAL NOT NULL
         )
@@ -69,6 +70,7 @@ def create_tables():
             produk_nama TEXT NOT NULL,
             jumlah INTEGER NOT NULL,
             harga REAL NOT NULL,
+            diskon REAL DEFAULT 0,
             subtotal REAL NOT NULL,
             FOREIGN KEY(transaksi_id) REFERENCES transaksi(id)
         )
@@ -87,6 +89,64 @@ def create_tables():
 
     conn.commit()
     conn.close()
+    
+def generate_nomor_faktur():
+    """
+    Generate nomor faktur otomatis: INV-YYYYMMDD-NNN
+    
+    Format:
+    - INV = Prefix Invoice
+    - YYYYMMDD = Tanggal hari ini
+    - NNN = Nomor urut (001, 002, dst) reset setiap hari
+    
+    Example:
+        INV-20241208-001
+        INV-20241208-002
+        INV-20241209-001 (besok reset ke 001)
+    
+    Returns:
+        str: Nomor faktur unik
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Ambil tanggal hari ini
+        tanggal_hari_ini = datetime.now().strftime("%Y%m%d")
+        prefix = f"INV-{tanggal_hari_ini}-"
+        
+        # Cari nomor urut terakhir hari ini
+        cursor.execute("""
+            SELECT no_faktur FROM transaksi 
+            WHERE no_faktur LIKE ? 
+            ORDER BY no_faktur DESC 
+            LIMIT 1
+        """, (f"{prefix}%",))
+        
+        result = cursor.fetchone()
+        
+        if result:
+            # Ada transaksi hari ini, ambil nomor terakhir
+            last_faktur = result[0]
+            # Extract nomor urut (misal: INV-20241208-005 → 005)
+            last_number = int(last_faktur.split("-")[-1])
+            next_number = last_number + 1
+        else:
+            # Belum ada transaksi hari ini, mulai dari 001
+            next_number = 1
+        
+        # Format: 001, 002, ..., 999
+        no_faktur = f"{prefix}{next_number:03d}"
+        
+        return no_faktur
+        
+    except Exception as e:
+        print(f"Error generate nomor faktur: {e}")
+        # Fallback: pakai timestamp
+        return f"INV-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+    finally:
+        conn.close()
 
 def tambah_produk(barcode, nama, harga, stok=0):
     conn = create_connection()
@@ -98,7 +158,7 @@ def tambah_produk(barcode, nama, harga, stok=0):
     conn.commit()
     conn.close()
 
-# === [UPDATE PENTING] Fungsi ini diubah agar mengembalikan ID dan Stok juga ===
+# Fungsi ini diubah agar mengembalikan ID dan Stok juga ===
 def cari_produk_dari_barcode(barcode):
     conn = create_connection()
     cursor = conn.cursor()
@@ -108,7 +168,7 @@ def cari_produk_dari_barcode(barcode):
     conn.close()
     return produk # Mengembalikan (id, nama, harga, stok)
 
-# === [FITUR BARU] Fungsi pencarian manual ===
+# Fungsi pencarian manual ===
 def cari_produk_by_nama_partial(keyword):
     """Mencari produk berdasarkan potongan nama (mirip LIKE di SQL)"""
     conn = create_connection()
@@ -380,20 +440,39 @@ def cek_login(username, password):
     else:
         return None
     
-def tambah_user(username, password):
+def tambah_user(username, password, role="admin"):
+    """
+    Tambah user baru dengan password bcrypt.
+    
+    Args:
+        username (str): Username
+        password (str): Password (plain text, akan di-hash otomatis)
+        role (str): Role user ('admin' atau 'kasir')
+    
+    Returns:
+        bool: True jika berhasil
+    """
     conn = create_connection()
     cursor = conn.cursor()
+    
+    # Hash password dengan bcrypt (fungsi hash_password sudah pakai bcrypt)
     hashed_password = hash_password(password)
+    
     try:
-        cursor.execute("INSERT INTO user (username, password, role) VALUES (?, ?, ?)", (username, hashed_password))
+        cursor.execute(
+            "INSERT INTO user (username, password, role) VALUES (?, ?, ?)", 
+            (username, hashed_password, role)
+        )
         conn.commit()
         conn.close()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Error tambah user: {e}")
         conn.close()
         return False
 
 def buat_user_default():
+    """Buat user default admin jika belum ada"""
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM user")
@@ -401,8 +480,8 @@ def buat_user_default():
     conn.close()
     
     if count == 0:
-        tambah_user("admin", "admin")
-        print("User default dibuat: username=admin, password=admin")
+        tambah_user("admin", "admin", "admin")  # role = admin
+        print("✅ User default dibuat: admin/admin")
 
 def cari_produk_by_id(id_produk):
     conn = create_connection()

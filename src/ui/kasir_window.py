@@ -469,8 +469,11 @@ class KasirWindow(QMainWindow):
         conn = create_connection()
         cursor = conn.cursor()
         try:
+            from src.database import generate_nomor_faktur
+            no_faktur = generate_nomor_faktur()
+        
             tanggal_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO transaksi (tanggal, total) VALUES (?, ?)", (tanggal_sekarang, self.total_transaksi))
+            cursor.execute("INSERT INTO transaksi (no_faktur, tanggal, total) VALUES (?, ?, ?)", (no_faktur, tanggal_sekarang, self.total_transaksi))
             transaksi_id = cursor.lastrowid
             
             for item in self.keranjang_belanja:
@@ -492,7 +495,17 @@ class KasirWindow(QMainWindow):
                 data_struk.append((item['nama'], int(item['harga']), item['qty'], int(item['subtotal'])))
             
             try:
-                filepath = cetak_struk_pdf(NAMA_TOKO, ALAMAT_TOKO, data_struk, int(self.total_transaksi))
+                username = getattr(self, 'current_user', 'admin')
+                filepath = cetak_struk_pdf(
+                    NAMA_TOKO, 
+                    ALAMAT_TOKO, 
+                    data_struk, 
+                    int(self.total_transaksi),
+                    no_faktur,
+                    uang_diterima,
+                    kembalian,
+                    username
+                )
                 import os, platform
                 if platform.system() == 'Windows': os.startfile(filepath)
             except Exception as e:
