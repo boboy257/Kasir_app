@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
     QLineEdit, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
     QMessageBox, QDialog, QFormLayout, QHeaderView, QAbstractItemView,
-    QInputDialog, QTextEdit
+    QInputDialog, QTextEdit, QListWidget
 )
 # [PENTING] Pastikan import ini ada
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -316,13 +316,200 @@ class DialogCariBarang(QDialog):
             self.selected_barcode = self.table.item(row, 0).text()
             self.accept()
 
+# --- CLASS DIALOG PILIH PENDING ---
+class DialogPilihPending(QDialog):
+    def __init__(self, daftar_pending, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Pilih Transaksi Pending")
+        self.setFixedSize(500, 400)
+        self.daftar_pending = daftar_pending
+        self.selected_index = None
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        
+        # Styling
+        self.setStyleSheet("""
+            QDialog { background-color: #f5f5f5; }
+            QLabel { color: #333; }
+            QListWidget {
+                background-color: white;
+                color: #000000;
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                font-size: 12px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:selected {
+                background-color: #2196F3;
+                color: white;
+            }
+            QPushButton {
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+        """)
+        
+        # Header
+        lbl_header = QLabel(f"📋 Daftar Transaksi Pending ({len(daftar_pending)})")
+        lbl_header.setStyleSheet("font-size: 16px; font-weight: bold; color: #1976D2; margin-bottom: 10px;")
+        layout.addWidget(lbl_header)
+        
+        # List Pending
+        from PyQt6.QtWidgets import QListWidget
+        self.list_widget = QListWidget()
+        
+        for idx, pending in enumerate(daftar_pending):
+            timestamp = pending['timestamp']
+            total = pending['total']
+            note = pending.get('note', '')
+            item_count = len(pending['keranjang'])
+            
+            if note:
+                text = f"#{idx+1} - {timestamp} - Rp {int(total):,}\n      📝 {note} ({item_count} items)"
+            else:
+                text = f"#{idx+1} - {timestamp} - Rp {int(total):,} ({item_count} items)"
+            
+            self.list_widget.addItem(text)
+        
+        self.list_widget.itemDoubleClicked.connect(self.recall_selected)
+        layout.addWidget(self.list_widget)
+        
+        # Info
+        lbl_info = QLabel("💡 Double-click atau pilih lalu klik Recall")
+        lbl_info.setStyleSheet("font-size: 10px; color: #666; font-style: italic;")
+        layout.addWidget(lbl_info)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+
+        self.btn_recall = QPushButton("✅ Recall")  # ✅ TAMBAH self.
+        self.btn_recall.setStyleSheet("background-color: #4CAF50; color: white; border: none;")
+        self.btn_recall.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_recall.clicked.connect(self.recall_selected)
+        self.btn_recall.installEventFilter(self)
+
+        self.btn_hapus = QPushButton("🗑️ Hapus")  # ✅ TAMBAH self.
+        self.btn_hapus.setStyleSheet("background-color: #f44336; color: white; border: none;")
+        self.btn_hapus.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_hapus.clicked.connect(self.hapus_selected)
+        self.btn_hapus.installEventFilter(self)
+
+        self.btn_batal = QPushButton("❌ Batal")  # ✅ TAMBAH self.
+        self.btn_batal.setStyleSheet("background-color: #757575; color: white; border: none;")
+        self.btn_batal.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_batal.clicked.connect(self.reject)
+        self.btn_batal.installEventFilter(self)
+
+        btn_layout.addWidget(self.btn_recall)
+        btn_layout.addWidget(self.btn_hapus)
+        btn_layout.addWidget(self.btn_batal)
+        layout.addLayout(btn_layout)
+        
+        self.list_widget.installEventFilter(self)
+        self.list_widget.setFocus()
+        if len(daftar_pending) > 0:
+            self.list_widget.setCurrentRow(0)
+    
+    def recall_selected(self):
+        current_row = self.list_widget.currentRow()
+        if current_row >= 0:
+            self.selected_index = current_row
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Pilih Transaksi", "Pilih transaksi yang ingin di-recall")
+    
+    def hapus_selected(self):
+        current_row = self.list_widget.currentRow()
+        if current_row >= 0:
+            reply = QMessageBox.question(
+                self, "Hapus Pending", 
+                "Yakin hapus transaksi pending ini?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                self.selected_index = current_row
+                self.done(2)  # Custom return code untuk hapus
+        else:
+            QMessageBox.warning(self, "Pilih Transaksi", "Pilih transaksi yang ingin dihapus")
+        
+    def eventFilter(self, obj, event):
+        """Handle keyboard navigation"""
+        if event.type() == QEvent.Type.KeyPress:
+            
+            # ===== NAVIGASI DI LIST =====
+            if obj == self.list_widget:
+                if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+                    self.recall_selected()
+                    return True
+                elif event.key() == Qt.Key.Key_Delete:
+                    self.hapus_selected()
+                    return True
+                elif event.key() == Qt.Key.Key_Escape:
+                    self.reject()
+                    return True
+                # ✅ ARROW DOWN di list terakhir -> Pindah ke tombol pertama
+                elif event.key() == Qt.Key.Key_Down:
+                    if self.list_widget.currentRow() == self.list_widget.count() - 1:
+                        self.btn_recall.setFocus()  # ✅ PAKAI self.
+                        return True
+            
+            # ===== NAVIGASI DI TOMBOL =====
+            # Tombol Recall
+            elif obj.objectName() == "btnRecall":
+                if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+                    self.recall_selected()
+                    return True
+                elif event.key() == Qt.Key.Key_Right:
+                    self.findChild(QPushButton, "btnHapus").setFocus()
+                    return True
+                elif event.key() == Qt.Key.Key_Up:
+                    self.list_widget.setFocus()
+                    return True
+            
+            # Tombol Hapus
+            elif obj.objectName() == "btnHapus":
+                if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+                    self.hapus_selected()
+                    return True
+                elif event.key() == Qt.Key.Key_Left:
+                    self.findChild(QPushButton, "btnRecall").setFocus()
+                    return True
+                elif event.key() == Qt.Key.Key_Right:
+                    self.findChild(QPushButton, "btnBatal").setFocus()
+                    return True
+                elif event.key() == Qt.Key.Key_Up:
+                    self.list_widget.setFocus()
+                    return True
+            
+            # Tombol Batal
+            elif obj.objectName() == "btnBatal":
+                if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+                    self.reject()
+                    return True
+                elif event.key() == Qt.Key.Key_Left:
+                    self.findChild(QPushButton, "btnHapus").setFocus()
+                    return True
+                elif event.key() == Qt.Key.Key_Up:
+                    self.list_widget.setFocus()
+                    return True
+        
+        return super().eventFilter(obj, event)
+                
 # --- CLASS UTAMA KASIR ---
 class KasirWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Aplikasi Kasir - Mode Penjualan")
         self.setGeometry(100, 100, 1100, 600)
-
+        self.qty_shortcut = 1
+     
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
@@ -332,6 +519,22 @@ class KasirWindow(QMainWindow):
         lbl_barcode = QLabel("Scan Barcode:")
         lbl_barcode.setStyleSheet("font-size: 14px; font-weight: bold;")
         
+        # ✅ TAMBAHKAN LABEL QTY SHORTCUT (Sebelum barcode input)
+        self.lbl_qty_shortcut = QLabel("Qty: 1x")
+        self.lbl_qty_shortcut.setFixedWidth(80)
+        self.lbl_qty_shortcut.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_qty_shortcut.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #4CAF50;
+                background-color: #1E1E1E;
+                border: 2px solid #4CAF50;
+                border-radius: 5px;
+                padding: 5px;
+            }
+        """)
+
         self.barcode_input = QLineEdit()
         self.barcode_input.setPlaceholderText("Scan barcode... (Panah Bawah ke Tabel)")
         self.barcode_input.setFixedHeight(40)
@@ -375,6 +578,7 @@ class KasirWindow(QMainWindow):
 
         top_layout.addWidget(lbl_barcode)
         top_layout.addWidget(self.barcode_input)
+        top_layout.addWidget(self.lbl_qty_shortcut)
         top_layout.addWidget(self.btn_cari)
         top_layout.addWidget(self.btn_qty)
         top_layout.addWidget(self.btn_diskon)
@@ -422,8 +626,10 @@ class KasirWindow(QMainWindow):
         layout.addLayout(bottom_layout)
 
         self.keranjang_belanja = [] 
-        self.keranjang_pending = [] 
+        self.daftar_pending = [] 
         self.total_transaksi = 0
+        self.MAX_PENDING = 5
+        self.update_pending_button()
 
         self.shortcut_pending = QShortcut(QKeySequence("F6"), self)
         self.shortcut_pending.activated.connect(self.toggle_pending)
@@ -434,6 +640,27 @@ class KasirWindow(QMainWindow):
     # --- EVENT FILTER ---
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
+            
+            # ✅ TAMBAHKAN INI (Detect angka 0-9 untuk qty shortcut)
+            # Hanya aktif kalau fokus di barcode input
+            if obj == self.barcode_input and not event.modifiers():
+                key = event.key()
+                
+                # Angka 0-9
+                if Qt.Key.Key_0 <= key <= Qt.Key.Key_9:
+                    angka = key - Qt.Key.Key_0  # Convert key code ke angka
+                    
+                    # Kalau 0 -> reset ke 1
+                    if angka == 0:
+                        self.qty_shortcut = 1
+                    else:
+                        self.qty_shortcut = angka
+                    
+                    # Update label
+                    self.update_qty_label()
+                    
+                    # Return True agar angka tidak masuk ke input barcode
+                    return True
             
             # [PERBAIKAN UTAMA] ESCAPE -> Tutup Kasir
             if event.key() == Qt.Key.Key_Escape:
@@ -461,38 +688,138 @@ class KasirWindow(QMainWindow):
                     return True
                     
         return super().eventFilter(obj, event)
+    
+    def update_qty_label(self):
+        """Update tampilan label qty shortcut"""
+        if self.qty_shortcut > 1:
+            self.lbl_qty_shortcut.setText(f"Qty: {self.qty_shortcut}x")
+            self.lbl_qty_shortcut.setStyleSheet("""
+                QLabel {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #FF9800;
+                    background-color: #1E1E1E;
+                    border: 2px solid #FF9800;
+                    border-radius: 5px;
+                    padding: 5px;
+                }
+            """)
+        else:
+            self.lbl_qty_shortcut.setText("Qty: 1x")
+            self.lbl_qty_shortcut.setStyleSheet("""
+                QLabel {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #4CAF50;
+                    background-color: #1E1E1E;
+                    border: 2px solid #4CAF50;
+                    border-radius: 5px;
+                    padding: 5px;
+                }
+            """)
 
     def toggle_pending(self):
-        """Logika Toggle Pending/Recall yang Aman"""
+        """Toggle antara Pending (simpan) dan Recall (ambil kembali)"""
+        
+        # CASE 1: Ada keranjang aktif -> PENDING (SIMPAN)
         if self.keranjang_belanja:
-            if self.keranjang_pending:
-                QMessageBox.warning(self, "Pending Penuh", "Sudah ada transaksi pending.")
+            # Cek apakah sudah max pending
+            if len(self.daftar_pending) >= self.MAX_PENDING:
+                QMessageBox.warning(
+                    self, "Pending Penuh", 
+                    f"Maksimal {self.MAX_PENDING} transaksi pending.\n"
+                    "Selesaikan transaksi pending lama terlebih dahulu."
+                )
                 self.barcode_input.setFocus()
                 return
-
-            reply = QMessageBox.question(self, "Pending", "Simpan transaksi sementara?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            if reply == QMessageBox.StandardButton.Yes:
-                self.keranjang_pending = list(self.keranjang_belanja)
-                self.keranjang_belanja = []
-                self.update_tabel_dan_total()
-                self.btn_pending.setText("Recall (F6)")
-                self.btn_pending.setStyleSheet("background-color: #E91E63; color: white; font-weight: bold;")
+            
+            # Input note (opsional)
+            note, ok = QInputDialog.getText(
+                self, "Catatan Pending", 
+                "Catatan (opsional, misal: 'Ibu baju merah'):",
+                QLineEdit.EchoMode.Normal
+            )
+            
+            if not ok:  # User cancel
+                self.barcode_input.setFocus()
+                return
+            
+            # Simpan ke daftar pending
+            pending_data = {
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'note': note.strip(),
+                'total': self.total_transaksi,
+                'keranjang': list(self.keranjang_belanja)  # Copy list
+            }
+            
+            self.daftar_pending.append(pending_data)
+            
+            # Reset keranjang aktif
+            self.keranjang_belanja = []
+            self.update_tabel_dan_total()
+            
+            # Update tombol
+            self.update_pending_button()
+            
+            QMessageBox.information(
+                self, "Pending Tersimpan", 
+                f"Transaksi disimpan!\n\n"
+                f"Total Pending: {len(self.daftar_pending)}\n"
+                f"Note: {note if note else '-'}"
+            )
             
             self.barcode_input.setFocus()
+    
+        # CASE 2: Tidak ada keranjang aktif -> RECALL (AMBIL)
+        elif self.daftar_pending:
+            # Tampilkan dialog pilih pending
+            dialog = DialogPilihPending(self.daftar_pending, self)
+            result = dialog.exec()
+            
+            if result == QDialog.DialogCode.Accepted:  # Recall
+                idx = dialog.selected_index
+                if idx is not None:
+                    # Ambil data pending
+                    pending = self.daftar_pending[idx]
+                    self.keranjang_belanja = list(pending['keranjang'])
+                    self.update_tabel_dan_total()
+                    
+                    # Hapus dari daftar pending
+                    self.daftar_pending.pop(idx)
+                    self.update_pending_button()
+                    
+                    QMessageBox.information(
+                        self, "Recall Berhasil", 
+                        f"Transaksi di-recall!\n\n"
+                        f"Note: {pending.get('note', '-')}\n"
+                        f"Total: Rp {int(pending['total']):,}"
+                    )
+            
+            elif result == 2:  # Hapus (custom code)
+                idx = dialog.selected_index
+                if idx is not None:
+                    self.daftar_pending.pop(idx)
+                    self.update_pending_button()
+                    QMessageBox.information(self, "Dihapus", "Transaksi pending dihapus")
+            
+            self.barcode_input.setFocus()
+    
+        # CASE 3: Tidak ada apa-apa
+        else:
+            QMessageBox.information(self, "Info", "Tidak ada transaksi untuk di-pending atau di-recall")
+            self.barcode_input.setFocus()
 
-        elif self.keranjang_pending:
-            self.keranjang_belanja = list(self.keranjang_pending)
-            self.keranjang_pending = []
-            self.update_tabel_dan_total()
+    def update_pending_button(self):
+        """Update tampilan tombol pending berdasarkan jumlah pending"""
+        count = len(self.daftar_pending)
+        
+        if count == 0:
             self.btn_pending.setText("Pending (F6)")
             self.btn_pending.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold;")
-            
-            self.barcode_input.setFocus()
-        
         else:
-            QMessageBox.information(self, "Info", "Tidak ada transaksi pending.")
-            self.barcode_input.setFocus()
-
+            self.btn_pending.setText(f"Pending ({count}) F6")
+            self.btn_pending.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+            
     def ubah_qty_item(self):
         row = self.table.currentRow()
         if row < 0:
@@ -571,22 +898,42 @@ class KasirWindow(QMainWindow):
                  QMessageBox.warning(self, "Stok Habis", f"Stok '{nama}' kosong!")
                  self.barcode_input.clear()
                  return
+             
+             # ✅ CEK STOK DENGAN QTY SHORTCUT
+            if self.qty_shortcut > stok_db:
+                QMessageBox.warning(self, "Stok Kurang", 
+                    f"Stok hanya {stok_db}, tidak cukup untuk {self.qty_shortcut} pcs!")
+                self.barcode_input.clear()
+                self.qty_shortcut = 1  # Reset
+                self.update_qty_label()
+                return
+        
             item_found = False
             for item in self.keranjang_belanja:
                 if item['id'] == id_produk:
-                    if item['qty'] + 1 > stok_db:
+                    # ✅ TAMBAH SESUAI QTY SHORTCUT
+                    if item['qty'] + self.qty_shortcut > stok_db:
                         QMessageBox.warning(self, "Stok Habis", f"Sisa stok hanya {stok_db}.")
                         self.barcode_input.clear()
+                        self.qty_shortcut = 1
+                        self.update_qty_label()
                         return
-                    item['qty'] += 1
+                    
+                    item['qty'] += self.qty_shortcut  # ✅ GANTI INI
                     item_found = True
                     break
+                
             if not item_found:
                 self.keranjang_belanja.append({
                     'id': id_produk, 'nama': nama, 'harga': harga, 
-                    'qty': 1, 'diskon': 0, 'subtotal': harga
+                    'qty': self.qty_shortcut,  # ✅ GANTI INI
+                    'diskon': 0, 'subtotal': harga * self.qty_shortcut
                 })
+                
             self.update_tabel_dan_total()
+            self.qty_shortcut = 1
+            self.update_qty_label()
+            
         else:
             reply = QMessageBox.question(self, "404", f"Barcode '{barcode}' tidak ada.\nCari manual?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:

@@ -39,8 +39,19 @@ def cetak_struk_pdf(nama_toko_ignored, alamat_toko_ignored, keranjang, total, no
     telepon = settings.get("telepon", "")
     footer_pesan = settings.get("footer_struk", "Terima Kasih")
 
-    filename = f"struk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    filepath = str(STRUK_FOLDER / filename)
+    # ✅ BUAT FOLDER PER TANGGAL
+    tanggal_hari_ini = datetime.now().strftime("%Y-%m-%d")
+    folder_tanggal = STRUK_FOLDER / tanggal_hari_ini
+    folder_tanggal.mkdir(exist_ok=True)
+
+    # ✅ NAMA FILE PAKAI NOMOR FAKTUR (OVERWRITE KALAU PRINT ULANG)
+    if no_faktur:
+        filename = f"struk_{no_faktur}.pdf"
+    else:
+        # Fallback kalau tidak ada nomor faktur
+        filename = f"struk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    
+    filepath = str(folder_tanggal / filename)
 
     doc = SimpleDocTemplate(filepath, pagesize=A4, 
                            topMargin=1*cm, bottomMargin=1*cm,
