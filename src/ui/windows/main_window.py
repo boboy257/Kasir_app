@@ -3,16 +3,16 @@ from PyQt6.QtWidgets import (
     QSizePolicy, QHBoxLayout, QFrame
 )
 from PyQt6.QtCore import QSize, Qt, QEvent, QTimer
-from src.ui.kasir_window import KasirWindow
-from src.ui.produk_window import ProdukWindow
-from src.ui.kelola_db_window import KelolaDBWindow
-from src.ui.laporan_window import LaporanWindow
-from src.ui.stok_rendah_window import StokRendahWindow
-from src.ui.generate_barcode_window import GenerateBarcodeWindow
-from src.ui.manajemen_user_window import ManajemenUserWindow
-from src.ui.log_aktivitas_window import LogAktivitasWindow
-from src.ui.pengaturan_window import PengaturanWindow
-from src.ui.riwayat_hari_ini_window import RiwayatHariIniWindow
+from src.ui.windows.kasir_window import KasirWindow
+from src.ui.windows.produk_window import ProdukWindow
+from src.ui.windows.kelola_db_window import KelolaDBWindow
+from src.ui.windows.laporan_window import LaporanWindow
+from src.ui.windows.stok_rendah_window import StokRendahWindow
+from src.ui.windows.generate_barcode_window import GenerateBarcodeWindow
+from src.ui.windows.manajemen_user_window import ManajemenUserWindow
+from src.ui.windows.log_aktivitas_window import LogAktivitasWindow
+from src.ui.windows.pengaturan_window import PengaturanWindow
+from src.ui.windows.riwayat_hari_ini_window import RiwayatHariIniWindow
 from src.database import get_info_dashboard
 
 class MainWindow(QMainWindow):
