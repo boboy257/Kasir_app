@@ -1,73 +1,61 @@
+"""
+Riwayat Hari Ini Window - REFACTORED VERSION
+=============================================
+Menggunakan BaseWindow untuk konsistensi
+"""
+
 from PyQt6.QtWidgets import (
-    QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
-    QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QMessageBox, QHeaderView, QAbstractItemView, QFrame,
-    QFileDialog
+    QVBoxLayout, QWidget, QHBoxLayout, QLabel, 
+    QPushButton, QTableWidget, QTableWidgetItem,
+    QHeaderView, QAbstractItemView, QFrame, QFileDialog
 )
 from PyQt6.QtCore import Qt
 from datetime import datetime
-from src.database import create_connection
-from src.ui.keyboard_mixin import KeyboardNavigationMixin
 
-class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
+from src.ui.base.base_window import BaseWindow
+from src.ui.base.style_manager import StyleManager
+from src.database import create_connection
+
+class RiwayatHariIniWindow(BaseWindow):
+    """
+    Window riwayat transaksi hari ini
+    
+    Features:
+    - Display transaksi hari ini
+    - Detail transaksi
+    - Print ulang struk
+    - Export PDF
+    """
+    
     def __init__(self):
         super().__init__()
+        
+        self.setup_ui()
+        self.setup_navigation()
+        self.muat_riwayat()
+        
+        # Window properties
         self.setWindowTitle("Riwayat Transaksi Hari Ini")
         self.setGeometry(100, 100, 1000, 600)
-
+    
+    def setup_ui(self):
+        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Styling
-        self.setStyleSheet("""
-            QWidget { 
-                background-color: #121212; 
-                color: #e0e0e0; 
-                font-family: 'Segoe UI'; 
-                font-size: 13px;
-                outline: none;
-            }
-            QTableWidget { 
-                background-color: #1E1E1E; 
-                gridline-color: #333; 
-                border: 1px solid #333; 
-                border-radius: 5px;
-                color: #e0e0e0;
-            }
-            QTableWidget:focus { border: 2px solid #2196F3; }
-            QHeaderView::section { 
-                background-color: #252525; 
-                color: white; 
-                padding: 8px; 
-                border: none; 
-                font-weight: bold; 
-            }
-            QTableWidget::item:selected { 
-                background-color: #2196F3; 
-                color: white; 
-            }
-            QPushButton { 
-                background-color: #1E1E1E; 
-                border: 1px solid #555; 
-                padding: 10px 20px; 
-                border-radius: 4px; 
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #333; }
-            QPushButton:focus { 
-                border: 2px solid #ffffff; 
-                background-color: #424242; 
-            }
-            QLabel { color: #bbb; }
-        """)
-
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
-
-        # ===== HEADER =====
+        
+        # Header
         header_frame = QFrame()
-        header_frame.setStyleSheet("background-color: #181818; border-radius: 8px; border: 1px solid #333;")
+        header_frame.setStyleSheet("""
+            QFrame {
+                background-color: #181818; 
+                border-radius: 8px; 
+                border: 1px solid #333;
+            }
+        """)
         header_layout = QVBoxLayout(header_frame)
         header_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -86,8 +74,8 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
         header_layout.addWidget(self.lbl_summary)
         
         layout.addWidget(header_frame)
-
-        # ===== TABEL =====
+        
+        # Table
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["ID", "No. Faktur", "Jam", "Kasir", "Total", "Aksi"])
         self.table.setColumnHidden(0, True)
@@ -95,32 +83,38 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet("QTableWidget { alternate-background-color: #252525; }")
+        self.table.installEventFilter(self)
         
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         
         layout.addWidget(self.table)
-
-        # ===== TOMBOL AKSI =====
+        
+        # Tombol Aksi
         btn_layout = QHBoxLayout()
         
+        style = StyleManager()
+        
         self.btn_detail = QPushButton("📄 Detail Transaksi")
+        self.btn_detail.setStyleSheet(style.get_button_style('default'))
         self.btn_detail.clicked.connect(self.lihat_detail)
+        self.btn_detail.installEventFilter(self)
         
         self.btn_print = QPushButton("🖨️ Print Ulang")
+        self.btn_print.setStyleSheet(style.get_button_style('default'))
         self.btn_print.clicked.connect(self.print_ulang)
+        self.btn_print.installEventFilter(self)
         
         self.btn_export = QPushButton("📥 Export PDF")
-        self.btn_export.setStyleSheet("""
-            QPushButton { background-color: #4CAF50; color: white; border: none; }
-            QPushButton:hover { background-color: #45a049; }
-            QPushButton:focus { border: 2px solid #fff; }
-        """)
+        self.btn_export.setStyleSheet(style.get_button_style('success'))
         self.btn_export.clicked.connect(self.export_pdf)
+        self.btn_export.installEventFilter(self)
         
         self.btn_refresh = QPushButton("🔄 Refresh")
+        self.btn_refresh.setStyleSheet(style.get_button_style('default'))
         self.btn_refresh.clicked.connect(self.muat_riwayat)
+        self.btn_refresh.installEventFilter(self)
         
         btn_layout.addWidget(self.btn_detail)
         btn_layout.addWidget(self.btn_print)
@@ -134,45 +128,61 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
         lbl_nav = QLabel("Navigasi: Arrow Keys | Enter (Detail) | ESC (Tutup)")
         lbl_nav.setStyleSheet("color: #777; font-size: 11px; font-style: italic;")
         layout.addWidget(lbl_nav)
-
-        # ✅ SETUP KEYBOARD NAVIGATION (MIXIN)
-        self.setup_keyboard_navigation()
-        self.setup_button_navigation([
-            self.btn_detail,
-            self.btn_print,
-            self.btn_export,
-            self.btn_refresh
-        ])
-
-        # Load data
-        self.muat_riwayat()
-        self.table.setFocus()
-
-    # ========== OVERRIDE MIXIN METHODS ==========
-    
-    def get_widget_after_table(self, table):
-        """Widget setelah tabel = tombol pertama"""
-        return self.btn_detail
-    
-    def get_widget_before_buttons(self):
-        """Widget sebelum tombol = tabel"""
-        return self.table
-    
-    def handle_table_enter(self, table):
-        """Enter di tabel = lihat detail"""
-        self.lihat_detail()
-    
-    def handle_navigation(self, obj, key):
-        """Custom navigation logic"""
-        # Button navigation
-        if hasattr(self, '_button_list') and obj in self._button_list:
-            return self.handle_button_navigation(obj, key)
         
-        # Table navigation
-        return super().handle_navigation(obj, key)
-
-    # ========== BUSINESS LOGIC ==========
-
+        # Initial focus
+        self.table.setFocus()
+    
+    def setup_navigation(self):
+        """Setup keyboard navigation"""
+        # Table: Enter = detail
+        self.register_navigation(self.table, {
+            Qt.Key.Key_Return: self.lihat_detail
+        })
+        
+        # Tombol Detail
+        self.register_navigation(self.btn_detail, {
+            Qt.Key.Key_Return: self.lihat_detail,
+            Qt.Key.Key_Right: self.btn_print,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table)
+        })
+        
+        # Tombol Print
+        self.register_navigation(self.btn_print, {
+            Qt.Key.Key_Return: self.print_ulang,
+            Qt.Key.Key_Left: self.btn_detail,
+            Qt.Key.Key_Right: self.btn_export,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table)
+        })
+        
+        # Tombol Export
+        self.register_navigation(self.btn_export, {
+            Qt.Key.Key_Return: self.export_pdf,
+            Qt.Key.Key_Left: self.btn_print,
+            Qt.Key.Key_Right: self.btn_refresh,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table)
+        })
+        
+        # Tombol Refresh
+        self.register_navigation(self.btn_refresh, {
+            Qt.Key.Key_Return: self.muat_riwayat,
+            Qt.Key.Key_Left: self.btn_export,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table)
+        })
+    
+    def eventFilter(self, obj, event):
+        """Handle special keyboard events"""
+        from PyQt6.QtCore import QEvent
+        
+        if event.type() == QEvent.Type.KeyPress:
+            # Table: Down di baris terakhir = pindah ke tombol
+            if obj == self.table:
+                if event.key() == Qt.Key.Key_Down:
+                    if self.table.currentRow() == self.table.rowCount() - 1:
+                        self.btn_detail.setFocus()
+                        return True
+        
+        return super().eventFilter(obj, event)
+    
     def muat_riwayat(self):
         """Muat transaksi hari ini dari database"""
         self.table.setRowCount(0)
@@ -212,21 +222,23 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
             
             total_omset += total
         
+        # Update summary
         self.lbl_summary.setText(
             f"Total: {len(transaksi_list)} transaksi | "
             f"Omset: Rp {int(total_omset):,}"
         )
-
+    
     def lihat_detail(self):
         """Tampilkan detail transaksi"""
         row = self.table.currentRow()
         if row < 0:
-            QMessageBox.warning(self, "Pilih Transaksi", "Pilih transaksi yang ingin dilihat")
+            self.show_warning("Pilih Transaksi", "Pilih transaksi yang ingin dilihat")
             return
         
         trans_id = int(self.table.item(row, 0).text())
         no_faktur = self.table.item(row, 1).text()
         
+        # Ambil detail
         conn = create_connection()
         cursor = conn.cursor()
         
@@ -239,6 +251,7 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
         items = cursor.fetchall()
         conn.close()
         
+        # Format pesan
         pesan = f"Detail Transaksi: {no_faktur}\n\n"
         pesan += "=" * 50 + "\n"
         
@@ -251,18 +264,19 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
         
         pesan += "=" * 50
         
-        QMessageBox.information(self, "Detail Transaksi", pesan)
-
+        self.show_success("Detail Transaksi", pesan)
+    
     def print_ulang(self):
         """Print ulang struk"""
         row = self.table.currentRow()
         if row < 0:
-            QMessageBox.warning(self, "Pilih Transaksi", "Pilih transaksi yang ingin di-print ulang")
+            self.show_warning("Pilih Transaksi", "Pilih transaksi yang ingin di-print ulang")
             return
         
         trans_id = int(self.table.item(row, 0).text())
         no_faktur = self.table.item(row, 1).text()
         
+        # Ambil data lengkap
         conn = create_connection()
         cursor = conn.cursor()
         
@@ -278,34 +292,30 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
         items = cursor.fetchall()
         conn.close()
         
+        # Generate struk
         try:
             from src.cetak_struk import cetak_struk_pdf
             from src.config import NAMA_TOKO, ALAMAT_TOKO
             
             filepath = cetak_struk_pdf(
-                NAMA_TOKO,
-                ALAMAT_TOKO,
-                items,
-                int(total),
-                no_faktur,
-                0,
-                0,
-                "admin"
+                NAMA_TOKO, ALAMAT_TOKO, items, int(total),
+                no_faktur, 0, 0, "admin"
             )
             
+            # Buka PDF
             import os, platform
             if platform.system() == 'Windows':
                 os.startfile(filepath)
             
-            QMessageBox.information(self, "Berhasil", "Struk berhasil di-print ulang!")
+            self.show_success("Berhasil", "Struk berhasil di-print ulang!")
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Gagal print ulang:\n{e}")
-
+            self.show_error("Error", f"Gagal print ulang:\n{e}")
+    
     def export_pdf(self):
         """Export semua transaksi hari ini ke PDF"""
         if self.table.rowCount() == 0:
-            QMessageBox.warning(self, "Tidak Ada Data", "Tidak ada transaksi hari ini")
+            self.show_warning("Tidak Ada Data", "Tidak ada transaksi hari ini")
             return
         
         tanggal_str = datetime.now().strftime("%Y%m%d")
@@ -328,11 +338,13 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
             styles = getSampleStyleSheet()
             story = []
             
+            # Header
             tanggal_lengkap = datetime.now().strftime("%d %B %Y")
             story.append(Paragraph(f"<b>RIWAYAT TRANSAKSI HARI INI</b>", styles['Title']))
             story.append(Paragraph(f"Tanggal: {tanggal_lengkap}", styles['Normal']))
             story.append(Spacer(1, 20))
             
+            # Data tabel
             data = [["No", "No. Faktur", "Jam", "Total"]]
             
             total_omset = 0
@@ -349,6 +361,7 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
             
             data.append(["", "", "TOTAL", f"Rp {total_omset:,}"])
             
+            # Buat tabel
             table = Table(data, colWidths=[50, 150, 100, 150])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
@@ -363,10 +376,7 @@ class RiwayatHariIniWindow(QMainWindow, KeyboardNavigationMixin):
             story.append(table)
             doc.build(story)
             
-            QMessageBox.information(self, "Berhasil", f"PDF tersimpan:\n{filepath}")
+            self.show_success("Berhasil", f"PDF tersimpan:\n{filepath}")
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Gagal export PDF:\n{e}")
-
-    def set_current_user(self, username):
-        self.current_user = username
+            self.show_error("Error", f"Gagal export PDF:\n{e}")
