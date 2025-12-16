@@ -1,24 +1,28 @@
 """
-Base Window Class
-=================
-Parent class untuk semua window dengan fitur:
-- Auto keyboard navigation setup
-- Standardized dialogs
-- Common utilities
-- Error handling
+Base Window Class (UPDATED)
+============================
+Parent class dengan KeyboardMixin integrated
+
+Changes:
+- ✅ Multiple inheritance: QMainWindow + KeyboardMixin
+- ✅ Simplified initialization
+- ✅ Remove duplicate eventFilter
+- ✅ Keep standardized dialogs & utilities
 """
 
 from PyQt6.QtWidgets import QMainWindow, QMessageBox
-from PyQt6.QtCore import Qt, QEvent
+from src.ui.base.keyboard_mixin import KeyboardMixin
 
-class BaseWindow(QMainWindow):
+
+class BaseWindow(QMainWindow, KeyboardMixin):
     """
-    Base class untuk semua window
+    Base class untuk semua window dengan keyboard navigation
     
     Features:
-    - Keyboard navigation support
+    - Auto keyboard navigation setup
     - Standardized dialogs
     - Common utilities
+    - Consistent ESC handling
     
     Usage:
         class MyWindow(BaseWindow):
@@ -26,22 +30,38 @@ class BaseWindow(QMainWindow):
                 super().__init__()
                 self.setup_ui()
                 self.setup_navigation()
+            
+            def setup_navigation(self):
+                # Basic navigation
+                self.register_navigation(self.input1, {
+                    Qt.Key.Key_Down: self.input2,
+                    Qt.Key.Key_Return: self.save_button
+                })
+                
+                # Table shortcuts
+                self.register_table_callbacks(self.table, {
+                    'edit': self.edit_row,
+                    'delete': self.delete_row,
+                    'focus_up': self.search_input
+                })
+                
+                # Custom shortcuts
+                self.register_shortcut(Qt.Key.Key_F3, self.custom_action)
     """
     
     def __init__(self):
         super().__init__()
         
-        # Current user (akan di-set dari main window)
+        # Setup keyboard navigation system
+        self.setup_keyboard_navigation()
+        
+        # Current user (set by main window)
         self.current_user = None
-        
-        # Navigation map untuk keyboard shortcuts
-        self._navigation_map = {}
-        
-        # Install event filter untuk keyboard handling
-        self.installEventFilter(self)
+    
+    # ========== USER MANAGEMENT ==========
     
     def set_current_user(self, username):
-        """Set current user (dipanggil dari main window)"""
+        """Set current user (called from main window)"""
         self.current_user = username
     
     # ========== STANDARDIZED DIALOGS ==========
@@ -63,7 +83,7 @@ class BaseWindow(QMainWindow):
         Standardized confirmation dialog
         
         Returns:
-            True jika user klik Yes, False jika No
+            True if user clicked Yes, False if No
         """
         reply = QMessageBox.question(
             self, title, message,
@@ -71,78 +91,7 @@ class BaseWindow(QMainWindow):
         )
         return reply == QMessageBox.StandardButton.Yes
     
-    # ========== KEYBOARD NAVIGATION ==========
-    
-    def register_navigation(self, widget, navigation_dict: dict):
-        """
-        Register keyboard navigation untuk widget
-        
-        Args:
-            widget: Widget yang akan di-register
-            navigation_dict: Dict dengan key = Qt.Key, value = target widget/function
-            
-        Example:
-            self.register_navigation(self.input_username, {
-                Qt.Key.Key_Down: self.input_password,
-                Qt.Key.Key_Return: self.input_password,
-            })
-        """
-        widget.installEventFilter(self)
-        self._navigation_map[widget] = navigation_dict
-    
-    def eventFilter(self, obj, event):
-        """Handle keyboard navigation"""
-        if event.type() == QEvent.Type.KeyPress:
-            
-            # Global ESC handler
-            if event.key() == Qt.Key.Key_Escape:
-                return self.handle_escape()
-            
-            # Widget-specific navigation
-            if obj in self._navigation_map:
-                nav_dict = self._navigation_map[obj]
-                
-                if event.key() in nav_dict:
-                    target = nav_dict[event.key()]
-                    
-                    if callable(target):
-                        # Jika target adalah function
-                        target()
-                    elif target is not None:
-                        # Jika target adalah widget
-                        target.setFocus()
-                        # Auto-select text untuk LineEdit
-                        if hasattr(target, 'selectAll'):
-                            target.selectAll()
-                    
-                    return True
-        
-        return super().eventFilter(obj, event)
-    
-    def handle_escape(self) -> bool:
-        """
-        Handle ESC key press
-        Override ini di subclass jika perlu custom behavior
-        
-        Returns:
-            True jika event handled
-        """
-        self.close()
-        return True
-    
     # ========== HELPER UTILITIES ==========
-    
-    def focus_table_first_row(self, table):
-        """Helper: Focus table & select first row"""
-        if table.rowCount() > 0:
-            table.setFocus()
-            table.selectRow(0)
-    
-    def focus_table_last_row(self, table):
-        """Helper: Focus table & select last row"""
-        if table.rowCount() > 0:
-            table.setFocus()
-            table.selectRow(table.rowCount() - 1)
     
     def clear_form(self, *widgets):
         """Helper: Clear multiple input widgets"""
@@ -156,3 +105,15 @@ class BaseWindow(QMainWindow):
         """Helper: Enable/disable multiple widgets"""
         for widget in widgets:
             widget.setEnabled(enabled)
+    
+    # ========== OVERRIDE METHODS ==========
+    
+    def handle_escape(self) -> bool:
+        """
+        Override ESC handling (from KeyboardMixin)
+        Default: Close window
+        
+        Override ini untuk custom behavior (e.g., konfirmasi jika ada perubahan)
+        """
+        self.close()
+        return True

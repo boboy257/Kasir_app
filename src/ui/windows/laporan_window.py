@@ -1,33 +1,19 @@
-"""
-Laporan Window - REFACTORED VERSION
-====================================
-Menggunakan BaseWindow untuk konsistensi
-"""
-
 from PyQt6.QtWidgets import (
-    QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem,
-    QPushButton, QHBoxLayout, QLabel, QDateEdit, QFrame,
-    QAbstractItemView, QHeaderView, QFileDialog
+    QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QLabel, QDateEdit, QFrame,
+    QFileDialog
 )
-from PyQt6.QtCore import Qt, QDate, QEvent
+from PyQt6.QtCore import Qt, QDate
 import csv
 from datetime import datetime
-from pathlib import Path
 
 from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
+from src.ui.widgets.smart_table import SmartTable
 from src.database import ambil_laporan_filter
 from src.config.paths import EXPORT_FOLDER
 
+
 class LaporanWindow(BaseWindow):
-    """
-    Window untuk laporan penjualan
-    
-    Features:
-    - Filter by date range
-    - Export to CSV/PDF
-    - Total omset calculation
-    """
     
     def __init__(self):
         super().__init__()
@@ -38,22 +24,18 @@ class LaporanWindow(BaseWindow):
         self.setup_ui()
         self.setup_navigation()
         
-        # Window properties
         self.setWindowTitle("Laporan Penjualan")
         self.setGeometry(100, 100, 1100, 700)
         
-        # Load data
         self.muat_laporan()
     
     def setup_ui(self):
-        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(20, 20, 20, 20)
         
-        # ===== FILTER AREA =====
         filter_frame = QFrame()
         filter_frame.setStyleSheet(
             "background-color: #181818; border-radius: 8px; border: 1px solid #333;"
@@ -62,7 +44,6 @@ class LaporanWindow(BaseWindow):
         filter_layout.setContentsMargins(15, 15, 15, 15)
         filter_layout.setSpacing(10)
         
-        # Date filters
         self.date_start = QDateEdit()
         self.date_start.setCalendarPopup(True)
         self.date_start.setDisplayFormat("yyyy-MM-dd")
@@ -73,7 +54,6 @@ class LaporanWindow(BaseWindow):
         self.date_end.setDisplayFormat("yyyy-MM-dd")
         self.date_end.setDate(QDate.currentDate())
         
-        # Buttons
         style = StyleManager()
         
         self.btn_filter = QPushButton("Terapkan Filter")
@@ -95,7 +75,6 @@ class LaporanWindow(BaseWindow):
         self.btn_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf.clicked.connect(self.export_pdf)
         
-        # Layout
         filter_layout.addWidget(QLabel("Dari:"))
         filter_layout.addWidget(self.date_start)
         filter_layout.addWidget(QLabel("Sampai:"))
@@ -108,27 +87,19 @@ class LaporanWindow(BaseWindow):
         
         layout.addWidget(filter_frame)
         
-        # ===== TABLE =====
-        self.table = QTableWidget(0, 6)
+        self.table = SmartTable(0, 6)
         self.table.setHorizontalHeaderLabels([
             "Tanggal", "Nama Produk", "Jumlah", "Harga", "Disc", "Subtotal"
         ])
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("QTableWidget { alternate-background-color: #252525; }")
-        
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(0, 150)
-        self.table.setColumnWidth(2, 60)
-        self.table.setColumnWidth(3, 100)
-        self.table.setColumnWidth(4, 80)
-        self.table.setColumnWidth(5, 120)
+        self.table.stretch_column(1)
+        self.table.set_column_width(0, 150)
+        self.table.set_column_width(2, 60)
+        self.table.set_column_width(3, 100)
+        self.table.set_column_width(4, 80)
+        self.table.set_column_width(5, 120)
         
         layout.addWidget(self.table)
         
-        # ===== FOOTER =====
         footer_layout = QHBoxLayout()
         
         self.lbl_total_periode = QLabel("Total Omset Periode Ini: Rp 0")
@@ -140,78 +111,53 @@ class LaporanWindow(BaseWindow):
         footer_layout.addWidget(self.lbl_total_periode)
         layout.addLayout(footer_layout)
         
-        # Focus awal
         self.date_start.setFocus()
     
     def setup_navigation(self):
-        """Setup keyboard navigation"""
-        
-        # Date Start: Enter = next field
         self.register_navigation(self.date_start, {
-            Qt.Key.Key_Return: self.date_end,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            Qt.Key.Key_Return: self.date_end
         })
         
-        # Date End: Enter = filter button
         self.register_navigation(self.date_end, {
-            Qt.Key.Key_Return: self.btn_filter,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            Qt.Key.Key_Return: self.btn_filter
         })
         
-        # Button Filter
         self.register_navigation(self.btn_filter, {
             Qt.Key.Key_Return: self.muat_laporan,
-            Qt.Key.Key_Right: self.btn_reset,
-            Qt.Key.Key_Left: self.date_end,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            Qt.Key.Key_Right: self.btn_reset
         })
         
-        # Button Reset
         self.register_navigation(self.btn_reset, {
             Qt.Key.Key_Return: self.reset_filter,
-            Qt.Key.Key_Right: self.btn_csv,
             Qt.Key.Key_Left: self.btn_filter,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            Qt.Key.Key_Right: self.btn_csv
         })
         
-        # Button CSV
         self.register_navigation(self.btn_csv, {
             Qt.Key.Key_Return: self.export_csv,
-            Qt.Key.Key_Right: self.btn_pdf,
             Qt.Key.Key_Left: self.btn_reset,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            Qt.Key.Key_Right: self.btn_pdf
         })
         
-        # Button PDF
         self.register_navigation(self.btn_pdf, {
             Qt.Key.Key_Return: self.export_pdf,
-            Qt.Key.Key_Left: self.btn_csv,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            Qt.Key.Key_Left: self.btn_csv
+        })
+        
+        self.register_table_callbacks(self.table, {
+            'focus_up': self.btn_filter
         })
     
-    def eventFilter(self, obj, event):
-        """Handle table navigation"""
-        if event.type() == QEvent.Type.KeyPress:
-            
-            # Table: Up di baris 0 = balik ke filter
-            if obj == self.table:
-                if event.key() == Qt.Key.Key_Up and self.table.currentRow() <= 0:
-                    self.btn_filter.setFocus()
-                    return True
-        
-        return super().eventFilter(obj, event)
-    
-    # ========== DATA OPERATIONS ==========
-    
     def muat_laporan(self):
-        """Load laporan berdasarkan date range"""
         start_date = self.date_start.date().toString("yyyy-MM-dd")
         end_date = self.date_end.date().toString("yyyy-MM-dd")
         
         hasil = ambil_laporan_filter(start_date, end_date)
         
-        self.table.setRowCount(0)
+        self.table.clear_table()
         total_omset = 0
+        
+        from PyQt6.QtWidgets import QTableWidgetItem
         
         for row, (tanggal, nama, jumlah, harga, diskon, subtotal) in enumerate(hasil):
             self.table.insertRow(row)
@@ -229,15 +175,11 @@ class LaporanWindow(BaseWindow):
         self.lbl_total_periode.setText(f"Total Omset: Rp {int(total_omset):,}")
     
     def reset_filter(self):
-        """Reset date filters to today"""
         self.date_start.setDate(QDate.currentDate())
         self.date_end.setDate(QDate.currentDate())
         self.muat_laporan()
     
-    # ========== EXPORT ==========
-    
     def export_csv(self):
-        """Export laporan to CSV"""
         start_date = self.date_start.date().toString("yyyy-MM-dd")
         end_date = self.date_end.date().toString("yyyy-MM-dd")
         hasil = ambil_laporan_filter(start_date, end_date)
@@ -267,7 +209,6 @@ class LaporanWindow(BaseWindow):
             self.show_error("Error", str(e))
     
     def export_pdf(self):
-        """Export laporan to PDF"""
         start_date = self.date_start.date().toString("yyyy-MM-dd")
         end_date = self.date_end.date().toString("yyyy-MM-dd")
         hasil = ambil_laporan_filter(start_date, end_date)
@@ -287,10 +228,7 @@ class LaporanWindow(BaseWindow):
         
         try:
             from reportlab.lib.pagesizes import A4
-            from reportlab.platypus import (
-                SimpleDocTemplate, Table, TableStyle, 
-                Paragraph, Spacer
-            )
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
             from reportlab.lib.styles import getSampleStyleSheet
             from reportlab.lib import colors
             
@@ -298,13 +236,13 @@ class LaporanWindow(BaseWindow):
             styles = getSampleStyleSheet()
             story = []
             
+            tanggal_lengkap = datetime.now().strftime("%d %B %Y")
             story.append(Paragraph(
                 f"<b>Laporan Penjualan ({start_date} s/d {end_date})</b>",
                 styles['Title']
             ))
             story.append(Spacer(1, 12))
             
-            # Table data
             data = [["Tanggal", "Produk", "Qty", "Harga", "Disc", "Subtotal"]]
             total_pdf = 0
             

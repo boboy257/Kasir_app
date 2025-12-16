@@ -1,13 +1,6 @@
-"""
-Kasir Window - REFACTORED VERSION
-==================================
-Menggunakan BaseWindow dan extracted dialogs
-"""
-
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QHBoxLayout, QLineEdit, QLabel, 
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, 
-    QAbstractItemView, QInputDialog, QMessageBox, QDialog
+    QPushButton, QInputDialog, QDialog
 )
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -15,6 +8,7 @@ from datetime import datetime
 
 from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
+from src.ui.widgets.smart_table import SmartTable
 from src.ui.dialogs.payment_dialog import PaymentDialog
 from src.ui.dialogs.preview_dialog import PreviewDialog
 from src.ui.dialogs.search_dialog import SearchDialog
@@ -27,13 +21,23 @@ from src.database import (
 from src.config import NAMA_TOKO, ALAMAT_TOKO
 from src.cetak_struk import cetak_struk_pdf
 
+
 class KasirWindow(BaseWindow):
     """
-    Kasir window dengan fitur:
-    - Scan barcode
-    - Qty shortcut (angka 1-9)
-    - Pending transaksi
-    - Multi-item management
+    Kasir Window - 100% Keyboard Navigation
+    
+    Navigation Map:
+    - Barcode Input: Always return here after actions
+    - Number 0-9: Set qty shortcut
+    - F4: Search dialog
+    - F2: Edit qty (table selected)
+    - F8: Edit discount (table selected)
+    - Delete: Hapus item (table selected)
+    - F5: Reset cart
+    - F6: Pending/Recall
+    - F12: Payment
+    - Down: Ke table
+    - Up (at table row 0): Balik ke barcode
     """
     
     def __init__(self):
@@ -46,28 +50,24 @@ class KasirWindow(BaseWindow):
         self.MAX_PENDING = 5
         
         self.setup_ui()
-        self.setup_navigation()
         self.setup_shortcuts()
         
-        # Window properties
         self.setWindowTitle("Aplikasi Kasir - Mode Penjualan")
         self.setGeometry(100, 100, 1100, 600)
     
     def setup_ui(self):
-        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # --- BAGIAN ATAS: Input & Controls ---
+        # TOP: Input & Controls
         top_layout = QHBoxLayout()
         
         lbl_barcode = QLabel("Scan Barcode:")
         lbl_barcode.setStyleSheet("font-size: 14px; font-weight: bold;")
         
-        # Qty Shortcut Label
         self.lbl_qty_shortcut = QLabel("Qty: 1x")
         self.lbl_qty_shortcut.setFixedWidth(80)
         self.lbl_qty_shortcut.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -79,14 +79,12 @@ class KasirWindow(BaseWindow):
             }
         """)
         
-        # Barcode Input
         self.barcode_input = QLineEdit()
-        self.barcode_input.setPlaceholderText("Scan barcode... (Panah Bawah ke Tabel)")
+        self.barcode_input.setPlaceholderText("Scan barcode... (↓ = Table, 0-9 = Qty)")
         self.barcode_input.setFixedHeight(40)
         self.barcode_input.returnPressed.connect(self.tambah_barang_ke_keranjang)
         self.barcode_input.installEventFilter(self)
         
-        # Buttons
         style = StyleManager()
         
         self.btn_cari = QPushButton("Cari (F4)")
@@ -136,23 +134,20 @@ class KasirWindow(BaseWindow):
         top_layout.addWidget(self.btn_hapus)
         layout.addLayout(top_layout)
         
-        # --- TABEL KERANJANG ---
-        self.table = QTableWidget(0, 6)
+        # TABLE
+        self.table = SmartTable(0, 6)
         self.table.setHorizontalHeaderLabels(["ID", "Nama Produk", "Harga", "Qty", "Disc", "Subtotal"])
         self.table.setColumnHidden(0, True)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.stretch_column(1)
+        self.table.set_column_width(2, 120)
+        self.table.set_column_width(3, 50)
+        self.table.set_column_width(4, 100)
+        self.table.set_column_width(5, 120)
         self.table.installEventFilter(self)
-        
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(2, 120)
-        self.table.setColumnWidth(3, 50)
-        self.table.setColumnWidth(4, 100)
-        self.table.setColumnWidth(5, 120)
         
         layout.addWidget(self.table)
         
-        # --- BAGIAN BAWAH: Total & Actions ---
+        # BOTTOM
         bottom_layout = QHBoxLayout()
         
         self.btn_pending = QPushButton("Pending (F6)")
@@ -178,21 +173,10 @@ class KasirWindow(BaseWindow):
         bottom_layout.addWidget(self.btn_bayar)
         layout.addLayout(bottom_layout)
         
-        # Update pending button
         self.update_pending_button()
     
-    def setup_navigation(self):
-        """Setup keyboard navigation"""
-        # Barcode input: Down = ke tabel
-        self.register_navigation(self.barcode_input, {
-            Qt.Key.Key_Down: lambda: self.focus_table_last_row(self.table)
-        })
-        
-        # Table: Up di baris 0 = balik ke input
-        # (Handled in eventFilter karena conditional)
-    
     def setup_shortcuts(self):
-        """Setup keyboard shortcuts"""
+        """Global F-key shortcuts"""
         QShortcut(QKeySequence("F2"), self).activated.connect(self.ubah_qty_item)
         QShortcut(QKeySequence("F4"), self).activated.connect(self.buka_dialog_cari)
         QShortcut(QKeySequence("F5"), self).activated.connect(self.reset_keranjang_confirm)
@@ -202,30 +186,56 @@ class KasirWindow(BaseWindow):
         QShortcut(QKeySequence("Delete"), self).activated.connect(self.hapus_item_terpilih)
     
     def eventFilter(self, obj, event):
-        """Handle keyboard events"""
+        """Handle all keyboard navigation"""
         if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
             
-            # Qty shortcut (angka 0-9)
-            if obj == self.barcode_input and not event.modifiers():
-                key = event.key()
-                if Qt.Key.Key_0 <= key <= Qt.Key.Key_9:
+            # ===== BARCODE INPUT =====
+            if obj == self.barcode_input:
+                # Number keys 0-9: Set qty shortcut
+                if Qt.Key.Key_0 <= key <= Qt.Key.Key_9 and not event.modifiers():
                     angka = key - Qt.Key.Key_0
                     self.qty_shortcut = 1 if angka == 0 else angka
                     self.update_qty_label()
                     return True
+                
+                # Down arrow: Jump to table
+                if key == Qt.Key.Key_Down:
+                    if self.table.rowCount() > 0:
+                        self.table.setFocus()
+                        self.table.selectRow(0)
+                    return True
             
-            # Table: Up di baris 0 = balik ke input
-            if obj == self.table and event.key() == Qt.Key.Key_Up:
-                if self.table.currentRow() == 0:
-                    self.barcode_input.setFocus()
+            # ===== TABLE =====
+            elif obj == self.table:
+                # Up at row 0: Back to barcode input
+                if key == Qt.Key.Key_Up:
+                    if self.table.currentRow() == 0:
+                        self.barcode_input.setFocus()
+                        self.barcode_input.selectAll()
+                        return True
+                
+                # F2 or Enter: Edit qty
+                if key in (Qt.Key.Key_F2, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    self.ubah_qty_item()
+                    return True
+                
+                # Delete: Remove item
+                if key == Qt.Key.Key_Delete:
+                    self.hapus_item_terpilih()
+                    return True
+                
+                # F8: Edit discount
+                if key == Qt.Key.Key_F8:
+                    self.ubah_diskon_item()
                     return True
         
         return super().eventFilter(obj, event)
     
     def handle_escape(self):
-        """Override ESC: Konfirmasi jika ada transaksi"""
+        """ESC: Confirm exit if cart not empty"""
         if self.keranjang_belanja:
-            if self.confirm_action("Keluar", "Transaksi belum selesai. Yakin ingin keluar?"):
+            if self.confirm_action("Keluar", "Transaksi belum selesai. Yakin keluar?"):
                 self.close()
                 return True
             return False
@@ -233,10 +243,8 @@ class KasirWindow(BaseWindow):
             self.close()
             return True
     
-    # ========== QTY SHORTCUT ==========
-    
     def update_qty_label(self):
-        """Update tampilan qty shortcut label"""
+        """Update qty shortcut label"""
         if self.qty_shortcut > 1:
             self.lbl_qty_shortcut.setText(f"Qty: {self.qty_shortcut}x")
             self.lbl_qty_shortcut.setStyleSheet("""
@@ -256,8 +264,6 @@ class KasirWindow(BaseWindow):
                 }
             """)
     
-    # ========== KERANJANG MANAGEMENT ==========
-    
     def tambah_barang_ke_keranjang(self):
         """Add item to cart"""
         barcode = self.barcode_input.text().strip()
@@ -269,10 +275,10 @@ class KasirWindow(BaseWindow):
         if produk:
             id_produk, nama, harga, stok_db = produk
             
-            # Cek stok
             if stok_db <= 0:
                 self.show_warning("Stok Habis", f"Stok '{nama}' kosong!")
                 self.barcode_input.clear()
+                self.barcode_input.setFocus()
                 return
             
             if self.qty_shortcut > stok_db:
@@ -281,9 +287,9 @@ class KasirWindow(BaseWindow):
                 self.barcode_input.clear()
                 self.qty_shortcut = 1
                 self.update_qty_label()
+                self.barcode_input.setFocus()
                 return
             
-            # Cek apakah item sudah ada di keranjang
             item_found = False
             for item in self.keranjang_belanja:
                 if item['id'] == id_produk:
@@ -292,13 +298,13 @@ class KasirWindow(BaseWindow):
                         self.barcode_input.clear()
                         self.qty_shortcut = 1
                         self.update_qty_label()
+                        self.barcode_input.setFocus()
                         return
                     
                     item['qty'] += self.qty_shortcut
                     item_found = True
                     break
             
-            # Tambah item baru
             if not item_found:
                 self.keranjang_belanja.append({
                     'id': id_produk,
@@ -313,7 +319,6 @@ class KasirWindow(BaseWindow):
             self.qty_shortcut = 1
             self.update_qty_label()
         else:
-            # Barang tidak ditemukan
             reply = self.confirm_action("404", f"Barcode '{barcode}' tidak ada.\nCari manual?")
             if reply:
                 self.buka_dialog_cari()
@@ -322,9 +327,11 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def update_tabel_dan_total(self):
-        """Update table dan total"""
-        self.table.setRowCount(0)
+        """Update table and total"""
+        self.table.clear_table()
         self.total_transaksi = 0
+        
+        from PyQt6.QtWidgets import QTableWidgetItem
         
         for row, item in enumerate(self.keranjang_belanja):
             self.table.insertRow(row)
@@ -351,24 +358,22 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def reset_keranjang_confirm(self):
-        """Reset dengan konfirmasi"""
+        """Reset cart with confirmation"""
         if not self.keranjang_belanja:
             return
         if self.confirm_action("Batal Transaksi", "Kosongkan keranjang?"):
             self.reset_keranjang()
     
-    # ========== ITEM ACTIONS ==========
-    
     def ubah_qty_item(self):
-        """Ubah jumlah item"""
+        """Edit quantity - Always return to barcode input after"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Item", "Pilih item di tabel dulu!")
+            self.barcode_input.setFocus()
             return
         
         item = self.keranjang_belanja[row]
         
-        # Cek stok database
         conn = create_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT stok FROM produk WHERE id = ?", (item['id'],))
@@ -388,13 +393,15 @@ class KasirWindow(BaseWindow):
             else:
                 self.keranjang_belanja[row]['qty'] = qty_baru
                 self.update_tabel_dan_total()
-                self.barcode_input.setFocus()
+        
+        self.barcode_input.setFocus()
     
     def ubah_diskon_item(self):
-        """Ubah diskon item"""
+        """Edit discount - Always return to barcode input after"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Item", "Pilih item di tabel dulu!")
+            self.barcode_input.setFocus()
             return
         
         item = self.keranjang_belanja[row]
@@ -408,88 +415,80 @@ class KasirWindow(BaseWindow):
         if ok:
             self.keranjang_belanja[row]['diskon'] = diskon_baru
             self.update_tabel_dan_total()
-            self.barcode_input.setFocus()
+        
+        self.barcode_input.setFocus()
     
     def hapus_item_terpilih(self):
-        """Hapus item dari keranjang"""
+        """Delete item - Always return to barcode input after"""
         row = self.table.currentRow()
         if row >= 0:
             nama = self.keranjang_belanja[row]['nama']
             if self.confirm_action("Hapus", f"Hapus '{nama}'?"):
                 del self.keranjang_belanja[row]
                 self.update_tabel_dan_total()
-                self.barcode_input.setFocus()
         else:
             self.show_warning("Pilih Item", "Pilih item yang ingin dihapus.")
-    
-    # ========== DIALOGS ==========
+        
+        self.barcode_input.setFocus()
     
     def buka_dialog_cari(self):
-        """Buka dialog cari barang"""
+        """Open search dialog - Return to barcode after"""
         dialog = SearchDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             if dialog.selected_barcode:
                 self.barcode_input.setText(dialog.selected_barcode)
                 self.tambah_barang_ke_keranjang()
+        
+        self.barcode_input.setFocus()
     
     def tampilkan_dialog_bayar(self):
-        """Tampilkan dialog pembayaran"""
+        """Payment dialog - Return to barcode after"""
         if not self.keranjang_belanja:
             self.show_warning("Kosong", "Keranjang kosong.")
+            self.barcode_input.setFocus()
             return
         
         dialog = PaymentDialog(self.total_transaksi, self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.pembayaran_sukses:
             self.simpan_transaksi(dialog.uang_diterima, dialog.kembalian)
-    
-    # ========== PENDING MANAGEMENT ==========
+        
+        self.barcode_input.setFocus()
     
     def toggle_pending(self):
-        """Toggle antara Pending (simpan) dan Recall (ambil)"""
-        # CASE 1: Ada keranjang -> PENDING
+        """Pending/Recall - Return to barcode after"""
         if self.keranjang_belanja:
             if len(self.daftar_pending) >= self.MAX_PENDING:
                 self.show_warning("Pending Penuh", 
-                    f"Maksimal {self.MAX_PENDING} transaksi pending.\n"
-                    "Selesaikan transaksi pending lama terlebih dahulu.")
+                    f"Maksimal {self.MAX_PENDING} transaksi pending.")
                 self.barcode_input.setFocus()
                 return
             
             note, ok = QInputDialog.getText(
                 self, "Catatan Pending", 
-                "Catatan (opsional, misal: 'Ibu baju merah'):"
+                "Catatan (opsional):"
             )
             
-            if not ok:
-                self.barcode_input.setFocus()
-                return
-            
-            # Simpan pending
-            pending_data = {
-                'timestamp': datetime.now().strftime('%H:%M:%S'),
-                'note': note.strip(),
-                'total': self.total_transaksi,
-                'keranjang': list(self.keranjang_belanja)
-            }
-            
-            self.daftar_pending.append(pending_data)
-            self.keranjang_belanja = []
-            self.update_tabel_dan_total()
-            self.update_pending_button()
-            
-            self.show_success("Pending Tersimpan", 
-                f"Transaksi disimpan!\n\n"
-                f"Total Pending: {len(self.daftar_pending)}\n"
-                f"Note: {note if note else '-'}")
-            
-            self.barcode_input.setFocus()
+            if ok:
+                pending_data = {
+                    'timestamp': datetime.now().strftime('%H:%M:%S'),
+                    'note': note.strip(),
+                    'total': self.total_transaksi,
+                    'keranjang': list(self.keranjang_belanja)
+                }
+                
+                self.daftar_pending.append(pending_data)
+                self.keranjang_belanja = []
+                self.update_tabel_dan_total()
+                self.update_pending_button()
+                
+                self.show_success("Pending Tersimpan", 
+                    f"Total Pending: {len(self.daftar_pending)}")
         
-        # CASE 2: Ada pending -> RECALL
         elif self.daftar_pending:
             dialog = PendingDialog(self.daftar_pending, self)
             result = dialog.exec()
             
-            if result == QDialog.DialogCode.Accepted:  # Recall
+            if result == QDialog.DialogCode.Accepted:
                 idx = dialog.selected_index
                 if idx is not None:
                     pending = self.daftar_pending[idx]
@@ -497,28 +496,20 @@ class KasirWindow(BaseWindow):
                     self.update_tabel_dan_total()
                     self.daftar_pending.pop(idx)
                     self.update_pending_button()
-                    
-                    self.show_success("Recall Berhasil", 
-                        f"Transaksi di-recall!\n\n"
-                        f"Note: {pending.get('note', '-')}\n"
-                        f"Total: Rp {int(pending['total']):,}")
             
-            elif result == 2:  # Hapus
+            elif result == 2:
                 idx = dialog.selected_index
                 if idx is not None:
                     self.daftar_pending.pop(idx)
                     self.update_pending_button()
-                    self.show_success("Dihapus", "Transaksi pending dihapus")
-            
-            self.barcode_input.setFocus()
         
-        # CASE 3: Tidak ada apa-apa
         else:
-            self.show_warning("Info", "Tidak ada transaksi untuk di-pending atau di-recall")
-            self.barcode_input.setFocus()
+            self.show_warning("Info", "Tidak ada transaksi pending.")
+        
+        self.barcode_input.setFocus()
     
     def update_pending_button(self):
-        """Update tampilan tombol pending"""
+        """Update pending button appearance"""
         count = len(self.daftar_pending)
         
         if count == 0:
@@ -536,10 +527,8 @@ class KasirWindow(BaseWindow):
                 QPushButton:focus { border: 2px solid #fff; }
             """)
     
-    # ========== TRANSAKSI ==========
-    
     def simpan_transaksi(self, uang_diterima, kembalian):
-        """Simpan transaksi ke database"""
+        """Save transaction"""
         conn = create_connection()
         cursor = conn.cursor()
         
@@ -547,14 +536,12 @@ class KasirWindow(BaseWindow):
             no_faktur = generate_nomor_faktur()
             tanggal_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # Insert transaksi
             cursor.execute(
                 "INSERT INTO transaksi (no_faktur, tanggal, total) VALUES (?, ?, ?)",
                 (no_faktur, tanggal_sekarang, self.total_transaksi)
             )
             transaksi_id = cursor.lastrowid
             
-            # Insert detail & update stok
             for item in self.keranjang_belanja:
                 nilai_diskon = item.get('diskon', 0)
                 cursor.execute("""
@@ -566,12 +553,10 @@ class KasirWindow(BaseWindow):
             
             conn.commit()
             
-            # Log aktivitas
             username = getattr(self, 'current_user', 'admin')
             log_aktivitas_pengguna(username, "Transaksi Penjualan", 
                 f"ID: {transaksi_id}, Total: Rp {self.total_transaksi}")
             
-            # Cetak struk
             data_struk = [(item['nama'], int(item['harga']), item['qty'], int(item['subtotal'])) 
                           for item in self.keranjang_belanja]
             
@@ -585,7 +570,6 @@ class KasirWindow(BaseWindow):
             except Exception as e:
                 print(f"Error cetak struk: {e}")
             
-            # Preview dialog
             tanggal_str = datetime.now().strftime('%d/%m/%Y %H:%M')
             preview_dialog = PreviewDialog(
                 no_faktur, tanggal_str, username, data_struk,
@@ -609,8 +593,7 @@ class KasirWindow(BaseWindow):
                 self.show_success("Transaksi Berhasil", 
                     f"✅ Transaksi tersimpan\n\n"
                     f"No. Faktur: {no_faktur}\n"
-                    f"Total: Rp {int(self.total_transaksi):,}\n\n"
-                    f"Struk tersimpan di folder 'struk'")
+                    f"Total: Rp {int(self.total_transaksi):,}")
             
             self.reset_keranjang()
             

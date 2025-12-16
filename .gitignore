@@ -16,6 +16,7 @@ data/backup/*.db
 # File export CSV - beda-beda per user
 data/export/*.csv
 data/export/*.xlsx
+data/export/*.pdf
 
 # ========== LOGS (AUTO-GENERATED) ==========
 # Log files - auto-generated, gak perlu di-commit
@@ -67,3 +68,4 @@ Thumbs.db
 # ========== TEMPORARY FILES ==========
 *.tmp
 *.temp
+

@@ -1,7 +1,11 @@
 """
-Pengaturan Window - REFACTORED VERSION
-=======================================
-Menggunakan BaseWindow untuk konsistensi
+Pengaturan Window - MIGRATED TO KEYBOARD MIXIN
+===============================================
+✅ Clean keyboard navigation using KeyboardMixin
+✅ No more eventFilter spaghetti!
+
+BEFORE: ~50 lines of eventFilter
+AFTER: ~10 lines of clean registration
 """
 
 from PyQt6.QtWidgets import (
@@ -14,22 +18,19 @@ from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
 from src.settings import load_settings, save_settings
 
+
 class PengaturanWindow(BaseWindow):
     """
     Window pengaturan toko
     
-    Features:
-    - Edit nama toko
-    - Edit alamat & telepon
-    - Custom footer struk
-    - Simple keyboard navigation
+    ✨ MIGRATED: Clean keyboard navigation
     """
     
     def __init__(self):
         super().__init__()
         
         self.setup_ui()
-        self.setup_navigation()
+        self.setup_navigation()  # ✅ Clean!
         self.muat_data()
         
         # Window properties
@@ -66,20 +67,16 @@ class PengaturanWindow(BaseWindow):
         # Input Fields
         self.inp_nama = QLineEdit()
         self.inp_nama.setPlaceholderText("Nama Toko")
-        self.inp_nama.installEventFilter(self)
         
         self.inp_alamat = QLineEdit()
         self.inp_alamat.setPlaceholderText("Alamat Lengkap")
-        self.inp_alamat.installEventFilter(self)
         
         self.inp_telp = QLineEdit()
         self.inp_telp.setPlaceholderText("No. Telepon / HP")
-        self.inp_telp.installEventFilter(self)
         
         self.inp_footer = QTextEdit()
         self.inp_footer.setPlaceholderText("Pesan di bagian bawah struk...")
         self.inp_footer.setFixedHeight(100)
-        self.inp_footer.installEventFilter(self)
         
         # Label Style
         lbl_style = "font-weight: bold; color: #888; border: none;"
@@ -92,7 +89,7 @@ class PengaturanWindow(BaseWindow):
         layout.addWidget(form_frame)
         
         # Info Navigasi
-        lbl_info = QLabel("💡 Info: Gunakan Enter/Panah untuk pindah. (Footer gunakan Tab/Ctrl+Bawah)")
+        lbl_info = QLabel("💡 Enter=Next | Tab=Next | Ctrl+S=Save | ESC=Close")
         lbl_info.setStyleSheet("color: #666; font-size: 11px; font-style: italic; margin-top: 5px;")
         layout.addWidget(lbl_info)
         
@@ -100,18 +97,24 @@ class PengaturanWindow(BaseWindow):
         
         # Tombol Simpan
         style = StyleManager()
-        self.btn_simpan = QPushButton("Simpan Perubahan")
+        self.btn_simpan = QPushButton("💾 Simpan Perubahan (Ctrl+S)")
         self.btn_simpan.setStyleSheet(style.get_button_style('success'))
         self.btn_simpan.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_simpan.clicked.connect(self.simpan_data)
-        self.btn_simpan.installEventFilter(self)
         layout.addWidget(self.btn_simpan)
         
         # Focus awal
         self.inp_nama.setFocus()
     
     def setup_navigation(self):
-        """Setup keyboard navigation"""
+        """
+        ✨ CLEAN NAVIGATION SETUP
+        
+        BEFORE: 50+ lines of eventFilter with Tab/Enter handling
+        AFTER: Just 10 lines! 🎉
+        """
+        
+        # ===== FORM NAVIGATION =====
         # Nama: Enter/Down = Alamat
         self.register_navigation(self.inp_nama, {
             Qt.Key.Key_Return: self.inp_alamat,
@@ -132,33 +135,28 @@ class PengaturanWindow(BaseWindow):
             Qt.Key.Key_Up: self.inp_alamat
         })
         
-        # Footer: Tab/Ctrl+Down = Tombol Simpan
-        # (Enter tidak karena untuk new line)
+        # Footer: Tab = Tombol Simpan, Up = Telepon
+        # Note: Enter tidak karena untuk new line di TextEdit
+        self.register_navigation(self.inp_footer, {
+            Qt.Key.Key_Up: self.inp_telp  # Ctrl+Up handled by base
+        })
         
         # Tombol: Enter = Simpan, Up = Footer
         self.register_navigation(self.btn_simpan, {
             Qt.Key.Key_Return: self.simpan_data,
             Qt.Key.Key_Up: self.inp_footer
         })
+        
+        # ===== GLOBAL SHORTCUTS =====
+        # Ctrl+S = Save (already handled by KeyboardMixin!)
+        # ESC = Close (already handled by KeyboardMixin!)
+        
+        # Custom: Tab untuk footer → button
+        self.register_shortcut(Qt.Key.Key_Tab, 
+                              lambda: self.btn_simpan.setFocus() if self.inp_footer.hasFocus() else None)
     
-    def eventFilter(self, obj, event):
-        """Handle special keyboard events"""
-        from PyQt6.QtCore import QEvent
-        
-        if event.type() == QEvent.Type.KeyPress:
-            # Footer: Tab atau Ctrl+Down = pindah ke tombol
-            if obj == self.inp_footer:
-                if event.key() == Qt.Key.Key_Tab:
-                    self.btn_simpan.setFocus()
-                    return True
-                elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Down:
-                    self.btn_simpan.setFocus()
-                    return True
-                elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Up:
-                    self.inp_telp.setFocus()
-                    return True
-        
-        return super().eventFilter(obj, event)
+    # ========== NO MORE EVENTFILTER! ==========
+    # ✅ All handled by KeyboardMixin!
     
     def muat_data(self):
         """Load settings dari file"""
@@ -169,7 +167,7 @@ class PengaturanWindow(BaseWindow):
         self.inp_footer.setText(data.get("footer_struk", ""))
     
     def simpan_data(self):
-        """Simpan settings ke file"""
+        """Simpan settings (Ctrl+S)"""
         data = {
             "nama_toko": self.inp_nama.text().strip(),
             "alamat_toko": self.inp_alamat.text().strip(),

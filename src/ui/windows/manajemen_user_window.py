@@ -1,33 +1,19 @@
-"""
-Manajemen User Window - REFACTORED VERSION
-===========================================
-Menggunakan BaseWindow untuk konsistensi
-"""
-
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QHBoxLayout, QLineEdit, QLabel, 
-    QPushButton, QTableWidget, QTableWidgetItem, QFormLayout, 
-    QComboBox, QHeaderView, QAbstractItemView, QFrame
+    QPushButton, QFormLayout, QComboBox, QFrame
 )
-from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtCore import Qt
 
 from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
+from src.ui.widgets.smart_table import SmartTable
 from src.database import (
     semua_user, tambah_user_baru, update_user, 
     hapus_user, cek_username_sudah_ada
 )
 
+
 class ManajemenUserWindow(BaseWindow):
-    """
-    Window untuk manajemen user (CRUD)
-    
-    Features:
-    - Tambah user baru
-    - Edit user existing
-    - Hapus user
-    - Role management (admin/kasir)
-    """
     
     def __init__(self):
         super().__init__()
@@ -37,15 +23,12 @@ class ManajemenUserWindow(BaseWindow):
         self.setup_ui()
         self.setup_navigation()
         
-        # Window properties
         self.setWindowTitle("Manajemen Pengguna (Admin Only)")
         self.setGeometry(100, 100, 950, 550)
         
-        # Load data
         self.muat_user()
     
     def setup_ui(self):
-        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -53,7 +36,7 @@ class ManajemenUserWindow(BaseWindow):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
         
-        # ===== LEFT SIDE: FORM =====
+        # LEFT: Form
         form_container = QFrame()
         form_container.setFixedWidth(320)
         form_container.setStyleSheet(
@@ -112,7 +95,7 @@ class ManajemenUserWindow(BaseWindow):
         
         form_layout.addStretch()
         
-        lbl_nav = QLabel("Navigasi: Enter & Panah | F2: Edit | Del: Hapus")
+        lbl_nav = QLabel("Enter=Next | F2=Edit | Del=Hapus | Ctrl+↑↓=Jump")
         lbl_nav.setStyleSheet(
             "color:#777; font-size:11px; background:transparent; border:none;"
         )
@@ -120,7 +103,7 @@ class ManajemenUserWindow(BaseWindow):
         
         layout.addWidget(form_container)
         
-        # ===== RIGHT SIDE: TABLE =====
+        # RIGHT: Table
         table_container = QVBoxLayout()
         
         lbl_tabel = QLabel("Daftar Pengguna Sistem:")
@@ -129,125 +112,76 @@ class ManajemenUserWindow(BaseWindow):
         )
         table_container.addWidget(lbl_tabel)
         
-        self.table_user = QTableWidget(0, 4)
+        self.table_user = SmartTable(0, 4)
         self.table_user.setHorizontalHeaderLabels(["ID", "Username", "Role", "Aksi"])
         self.table_user.setColumnHidden(0, True)
-        self.table_user.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table_user.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table_user.verticalHeader().setVisible(False)
-        self.table_user.setShowGrid(False)
-        self.table_user.setAlternatingRowColors(True)
-        self.table_user.setStyleSheet(
-            "QTableWidget { alternate-background-color: #252525; background-color: #1E1E1E; }"
-        )
-        
-        header = self.table_user.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.table_user.stretch_column(1)
         
         table_container.addWidget(self.table_user)
         layout.addLayout(table_container)
         
-        # Focus awal
         self.input_username.setFocus()
     
     def setup_navigation(self):
-        """Setup keyboard navigation"""
-        
-        # Username
+        """Form + Table navigation"""
+        # Form fields (vertical)
         self.register_navigation(self.input_username, {
             Qt.Key.Key_Down: self.input_password,
             Qt.Key.Key_Return: self.input_password
         })
         
-        # Password
         self.register_navigation(self.input_password, {
             Qt.Key.Key_Up: self.input_username,
             Qt.Key.Key_Down: self.combo_role,
             Qt.Key.Key_Return: lambda: (self.combo_role.setFocus(), self.combo_role.showPopup())
         })
         
-        # Role Combo
         self.register_navigation(self.combo_role, {
             Qt.Key.Key_Up: self.input_password,
             Qt.Key.Key_Down: self.btn_simpan,
             Qt.Key.Key_Return: self.btn_simpan
         })
         
-        # Button Simpan
+        # Buttons (horizontal)
         self.register_navigation(self.btn_simpan, {
             Qt.Key.Key_Up: self.combo_role,
             Qt.Key.Key_Right: self.btn_batal,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_user),
             Qt.Key.Key_Return: self.simpan_user
         })
         
-        # Button Batal
         self.register_navigation(self.btn_batal, {
             Qt.Key.Key_Up: self.combo_role,
             Qt.Key.Key_Left: self.btn_simpan,
-            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_user),
             Qt.Key.Key_Return: self.bersihkan_form
         })
-    
-    def eventFilter(self, obj, event):
-        """Handle special keys untuk table"""
-        if event.type() == QEvent.Type.KeyPress:
-            
-            # Ctrl+Down: Jump to table
-            if (event.modifiers() == Qt.KeyboardModifier.ControlModifier and 
-                event.key() == Qt.Key.Key_Down):
-                if self.table_user.rowCount() > 0:
-                    self.focus_table_first_row(self.table_user)
-                return True
-            
-            # Ctrl+Up: Back to form
-            if (event.modifiers() == Qt.KeyboardModifier.ControlModifier and 
-                event.key() == Qt.Key.Key_Up):
-                self.input_username.setFocus()
-                return True
-            
-            # Table shortcuts
-            if obj == self.table_user:
-                # Up di baris 0 = balik ke form
-                if event.key() == Qt.Key.Key_Up and self.table_user.currentRow() == 0:
-                    self.btn_simpan.setFocus()
-                    return True
-                
-                # F2 = Edit
-                if event.key() == Qt.Key.Key_F2:
-                    self.edit_current_row()
-                    return True
-                
-                # Delete = Hapus
-                if event.key() == Qt.Key.Key_Delete:
-                    self.delete_current_row()
-                    return True
         
-        return super().eventFilter(obj, event)
-    
-    # ========== TABLE SHORTCUTS ==========
+        # Table shortcuts
+        self.register_table_callbacks(self.table_user, {
+            'edit': self.edit_current_row,
+            'delete': self.delete_current_row,
+            'focus_up': self.btn_simpan
+        })
     
     def edit_current_row(self):
-        """Edit user dari baris yang dipilih"""
+        """Helper: Edit dari F2/Enter"""
         row = self.table_user.currentRow()
         if row >= 0:
             user_id = self.table_user.item(row, 0).text()
             self.edit_user(user_id)
     
     def delete_current_row(self):
-        """Hapus user dari baris yang dipilih"""
+        """Helper: Hapus dari Delete key"""
         row = self.table_user.currentRow()
         if row >= 0:
             user_id = self.table_user.item(row, 0).text()
             self.hapus_user(user_id)
     
-    # ========== DATA OPERATIONS ==========
-    
     def muat_user(self):
-        """Load semua user ke table"""
-        self.table_user.setRowCount(0)
+        """Load all users"""
+        self.table_user.clear_table()
         user_list = semua_user()
+        
+        from PyQt6.QtWidgets import QTableWidgetItem
         
         for row, (id_user, username, role) in enumerate(user_list):
             self.table_user.insertRow(row)
@@ -294,7 +228,7 @@ class ManajemenUserWindow(BaseWindow):
             self.table_user.setCellWidget(row, 3, btn_container)
     
     def simpan_user(self):
-        """Simpan user baru atau update existing"""
+        """Save new or update existing user"""
         username = self.input_username.text().strip()
         password = self.input_password.text().strip()
         role = self.combo_role.currentData()
@@ -339,7 +273,7 @@ class ManajemenUserWindow(BaseWindow):
                 self.show_error("Error", "Gagal update user.")
     
     def edit_user(self, id_user):
-        """Load data user ke form untuk edit"""
+        """Load user data to form"""
         for row in range(self.table_user.rowCount()):
             if self.table_user.item(row, 0).text() == str(id_user):
                 username = self.table_user.item(row, 1).text()
@@ -363,7 +297,7 @@ class ManajemenUserWindow(BaseWindow):
                 break
     
     def hapus_user(self, id_user):
-        """Hapus user"""
+        """Delete user"""
         if not self.confirm_action("Hapus User", "Yakin hapus user ini?"):
             return
         
@@ -372,9 +306,8 @@ class ManajemenUserWindow(BaseWindow):
         self.bersihkan_form()
     
     def bersihkan_form(self):
-        """Reset form ke state awal"""
-        self.input_username.clear()
-        self.input_password.clear()
+        """Reset form"""
+        self.clear_form(self.input_username, self.input_password)
         self.input_password.setPlaceholderText("Isi password...")
         self.combo_role.setCurrentIndex(0)
         self.user_yang_diedit = None
