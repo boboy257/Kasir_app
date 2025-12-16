@@ -9,19 +9,23 @@ from barcode import Code128
 from barcode.writer import ImageWriter
 from PIL import Image, ImageDraw, ImageFont
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(CURRENT_DIR)
-DB_PATH = Path(os.path.join(ROOT_DIR, "data", "pos.db"))
+# ✅ FIXED: Import yang benar dari config/paths
+from src.config.paths import (
+    DB_PATH,           # ✅ Bukan DATABASE_PATH
+    BACKUP_FOLDER,
+    BARCODE_FOLDER,
+    get_backup_filename
+)
+
 print(f"DATABASE PATH: {DB_PATH}")
 
 def create_connection():
     # --- PERBAIKAN: Cek folder dulu sebelum connect ---
     # Ambil nama folder dari path database (yaitu folder "data")
-    folder_database = os.path.dirname(DB_PATH)
+    folder_database = DB_PATH.parent
     
     # Jika foldernya tidak ada, buat folder baru!
-    if not os.path.exists(folder_database):
-        os.makedirs(folder_database)
+    folder_database.mkdir(parents=True, exist_ok=True)
     # --------------------------------------------------
 
     conn = sqlite3.connect(DB_PATH)
@@ -197,11 +201,13 @@ def backup_database():
     Backup database dengan aman menggunakan SQLite Backup API.
     Aman dijalankan saat aplikasi sedang operasional.
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_folder = Path("data/backup")
-    backup_folder.mkdir(exist_ok=True)
+    if not DB_PATH.exists():
+        return None
     
-    backup_path = backup_folder / f"backup_pos_{timestamp}.db"
+    # ✅ UPDATED: Gunakan helper function
+    BACKUP_FOLDER.mkdir(parents=True, exist_ok=True)
+    backup_filename = get_backup_filename()
+    backup_path = BACKUP_FOLDER / backup_filename
     
     try:
         source_conn = sqlite3.connect(DB_PATH)
@@ -228,11 +234,10 @@ def backup_database_harian():
     if not DB_PATH.exists():
         return None
     
-    backup_folder = Path("data/backup")
-    backup_folder.mkdir(exist_ok=True)
+    BACKUP_FOLDER.mkdir(parents=True, exist_ok=True)
     
     tanggal_hari_ini = datetime.now().strftime("%Y%m%d")
-    backup_path = backup_folder / f"pos_backup_{tanggal_hari_ini}.db"
+    backup_path = BACKUP_FOLDER / f"pos_backup_{tanggal_hari_ini}.db"
     
     if backup_path.exists():
         return None
@@ -304,8 +309,11 @@ def export_produk_ke_csv():
     conn.close()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = Path(f"data/produk_{timestamp}.csv")
-    csv_path.parent.mkdir(exist_ok=True)
+    
+    # ✅ UPDATED: Gunakan EXPORT_FOLDER dari config
+    from src.config.paths import EXPORT_FOLDER
+    EXPORT_FOLDER.mkdir(parents=True, exist_ok=True)
+    csv_path = EXPORT_FOLDER / f"produk_{timestamp}.csv"
 
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
@@ -396,7 +404,6 @@ def hash_password(password):
     Hash password menggunakan bcrypt dengan salt otomatis.
     Return: String hash yang bisa langsung disimpan di database.
     """
-def hash_password(password):
     # Mengembalikan string hash bcrypt
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
@@ -544,8 +551,10 @@ def tampilkan_notifikasi_stok_rendah():
         msg.exec()
 
 def generate_barcode_gambar(barcode_value, nama_produk, output_path):
-    barcode_folder = os.path.dirname(output_path)
-    os.makedirs(barcode_folder, exist_ok=True)
+    # ✅ UPDATED: Gunakan BARCODE_FOLDER
+    barcode_folder = BARCODE_FOLDER
+    barcode_folder.mkdir(parents=True, exist_ok=True)
+    
     barcode = Code128(barcode_value, writer=ImageWriter())
     barcode_path = barcode.save(output_path)
     img = Image.open(barcode_path)
@@ -569,13 +578,15 @@ def generate_semua_barcode_gambar():
     produk_list = semua_produk()
     if not produk_list:
         return []
-    barcode_folder = "barcode"
-    os.makedirs(barcode_folder, exist_ok=True)
+    
+    # ✅ UPDATED: Gunakan BARCODE_FOLDER
+    BARCODE_FOLDER.mkdir(parents=True, exist_ok=True)
+    
     hasil = []
     for id_produk, barcode, nama, harga, stok in produk_list:
         if barcode:
             filename = f"{barcode}_{nama.replace(' ', '_')}.png"
-            output_path = os.path.join(barcode_folder, filename)
+            output_path = str(BARCODE_FOLDER / filename)
             try:
                 barcode_path = generate_barcode_gambar(barcode, nama, output_path)
                 hasil.append(barcode_path)
@@ -781,15 +792,10 @@ def get_info_dashboard():
     return omset_hari_ini, transaksi_hari_ini, data_grafik
 
 def ambil_laporan_filter(start_date, end_date):
-    """
-    Ambil laporan berdasarkan rentang tanggal (Format: YYYY-MM-DD)
-    Contoh: start='2023-10-01', end='2023-10-31'
-    """
+    """Get sales report by date range"""
     conn = create_connection()
     cursor = conn.cursor()
     
-    # Kita gunakan fungsi date() dari SQLite untuk membandingkan tanggal saja (abaikan jam)
-    # Query ini mengambil data yang tanggalnya ANTARA start DAN end (inklusif)
     cursor.execute("""
         SELECT t.tanggal, dt.produk_nama, dt.jumlah, dt.harga, dt.diskon, dt.subtotal
         FROM transaksi t

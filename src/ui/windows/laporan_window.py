@@ -17,6 +17,7 @@ from pathlib import Path
 from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
 from src.database import ambil_laporan_filter
+from src.config.paths import EXPORT_FOLDER
 
 class LaporanWindow(BaseWindow):
     """
@@ -31,8 +32,8 @@ class LaporanWindow(BaseWindow):
     def __init__(self):
         super().__init__()
         
-        self.export_folder = Path("export")
-        self.export_folder.mkdir(exist_ok=True)
+        self.export_folder = EXPORT_FOLDER
+        self.export_folder.mkdir(parents=True, exist_ok=True)
         
         self.setup_ui()
         self.setup_navigation()

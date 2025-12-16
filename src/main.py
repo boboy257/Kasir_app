@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import QApplication
 from src.ui.windows.main_window import MainWindow
 from src.ui.windows.login_window import LoginWindow
 from src.database import create_tables, buat_user_default, backup_database_harian, tampilkan_notifikasi_stok_rendah
-from src.ui.base.style_manager import StyleManager  # ← TAMBAH INI
+from src.ui.base.style_manager import StyleManager  
+from src.config.paths import ensure_folders_exist
 
 class AppController:
     def __init__(self):

@@ -6,12 +6,10 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from datetime import datetime
 from pathlib import Path
-from src.settings import load_settings
 
-# Path Output
-ROOT_DIR = Path(__file__).parent.parent
-STRUK_FOLDER = ROOT_DIR / "struk"
-STRUK_FOLDER.mkdir(exist_ok=True)
+# ✅ UPDATED: Import dari config/paths
+from src.config.paths import STRUK_FOLDER
+from src.settings import load_settings
 
 def cetak_struk_pdf(nama_toko_ignored, alamat_toko_ignored, keranjang, total, no_faktur=None, 
                      uang_diterima=0, kembalian=0, nama_kasir="admin"):
@@ -39,7 +37,7 @@ def cetak_struk_pdf(nama_toko_ignored, alamat_toko_ignored, keranjang, total, no
     telepon = settings.get("telepon", "")
     footer_pesan = settings.get("footer_struk", "Terima Kasih")
 
-    # ✅ BUAT FOLDER PER TANGGAL
+    # ✅ UPDATED: Gunakan STRUK_FOLDER dari config
     tanggal_hari_ini = datetime.now().strftime("%Y-%m-%d")
     folder_tanggal = STRUK_FOLDER / tanggal_hari_ini
     folder_tanggal.mkdir(exist_ok=True)
