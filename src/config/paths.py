@@ -28,8 +28,8 @@ EXPORT_FOLDER = DATA_FOLDER / "export"
 LOGS_FOLDER = DATA_FOLDER / "logs"
 
 # ========== OUTPUT FOLDERS ==========
-STRUK_FOLDER = ROOT_DIR / "struk"
-BARCODE_FOLDER = ROOT_DIR / "barcode"
+STRUK_FOLDER = DATA_FOLDER / "struk"
+BARCODE_FOLDER = DATA_FOLDER / "barcode"
 
 # ========== FILES ==========
 DB_PATH = DATA_FOLDER / "pos.db"

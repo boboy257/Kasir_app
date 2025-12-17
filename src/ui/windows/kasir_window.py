@@ -174,7 +174,33 @@ class KasirWindow(BaseWindow):
         layout.addLayout(bottom_layout)
         
         self.update_pending_button()
-    
+        
+      
+    def keyPressEvent(self, event):
+        """Handle ESC key untuk keluar kasir"""
+        if event.key() == Qt.Key.Key_Escape:
+            # Cek apakah ada transaksi aktif ATAU ada pending
+            if self.keranjang_belanja or self.daftar_pending:
+                # Buat pesan yang informatif
+                pesan = "Yakin ingin keluar?\n\n"
+                
+                if self.keranjang_belanja:
+                    pesan += f"⚠️ Ada {len(self.keranjang_belanja)} barang di keranjang\n"
+                    pesan += "   (Tekan F6 untuk Pending)\n\n"
+                
+                if self.daftar_pending:
+                    pesan += f"⚠️ Ada {len(self.daftar_pending)} transaksi pending\n"
+                    pesan += "   (Data pending akan hilang!)\n\n"
+                
+                if self.confirm_action("Keluar Kasir", pesan):
+                    self.close()
+            else:
+                # Keranjang kosong DAN tidak ada pending
+                self.close()
+            return
+        
+        super().keyPressEvent(event)
+             
     def setup_shortcuts(self):
         """Global F-key shortcuts"""
         QShortcut(QKeySequence("F2"), self).activated.connect(self.ubah_qty_item)

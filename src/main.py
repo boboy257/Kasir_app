@@ -55,6 +55,7 @@ class AppController:
     def run(self):
         # Izinkan Ctrl+C mematikan aplikasi seketika
         signal.signal(signal.SIGINT, signal.SIG_DFL)
+        ensure_folders_exist()
         
         # Setup Database
         create_tables()

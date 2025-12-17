@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTextEdit
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent
 
 class PreviewDialog(QDialog):
     """
@@ -62,10 +62,12 @@ class PreviewDialog(QDialog):
                 padding: 10px;
             }
             QPushButton {
-                padding: 10px 20px;
+                padding: 12px 24px;
                 border-radius: 5px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 13px;
+                border: 3px solid transparent;
+                outline: none;
             }
             QPushButton#btnPrint {
                 background-color: #4CAF50;
@@ -75,6 +77,12 @@ class PreviewDialog(QDialog):
             QPushButton#btnPrint:hover {
                 background-color: #45a049;
             }
+            QPushButton#btnPrint:focus {
+                border: 3px solid #FFD700;  /* Gold border */
+                background-color: #45a049;
+                /* transform: scale(1.05);
+                box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); */
+            }
             QPushButton#btnClose {
                 background-color: #757575;
                 color: white;
@@ -82,6 +90,12 @@ class PreviewDialog(QDialog):
             }
             QPushButton#btnClose:hover {
                 background-color: #616161;
+            }
+            QPushButton#btnClose:focus {
+                border: 3px solid #FFD700;  /* Gold border */
+                background-color: #616161;
+                /* transform: scale(1.05);
+                box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); */
             }
         """)
         
@@ -110,11 +124,15 @@ class PreviewDialog(QDialog):
         self.btn_print.setObjectName("btnPrint")
         self.btn_print.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_print.clicked.connect(self.confirm_print)
+        self.btn_print.setAutoDefault(True)
+        self.btn_print.setDefault(True)
+        self.btn_print.installEventFilter(self)
         
         self.btn_close = QPushButton("✖️ Tutup")
         self.btn_close.setObjectName("btnClose")
         self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_close.clicked.connect(self.reject)
+        self.btn_close.installEventFilter(self)
         
         btn_layout.addWidget(self.btn_print)
         btn_layout.addWidget(self.btn_close)
@@ -122,7 +140,7 @@ class PreviewDialog(QDialog):
         
         # Focus ke tombol print
         self.btn_print.setFocus()
-    
+
     def render_preview(self):
         """Render preview struk dalam format text"""
         from src.settings import load_settings
@@ -181,9 +199,64 @@ class PreviewDialog(QDialog):
         self.user_print = True
         self.accept()
     
+    def eventFilter(self, obj, event):
+        """Handle keyboard navigation untuk tombol"""
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            
+            # Tombol Print
+            if obj == self.btn_print:
+                if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                    self.confirm_print()
+                    return True
+                if key == Qt.Key.Key_Right:
+                    self.btn_close.setFocus()
+                    return True
+            
+            # Tombol Close
+            elif obj == self.btn_close:
+                if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                    self.reject()
+                    return True
+                if key == Qt.Key.Key_Left:
+                    self.btn_print.setFocus()
+                    return True
+                # Left = Previous button
+                if key == Qt.Key.Key_Left:
+                    self.btn_print.setFocus()
+                    return True
+                
+                # Shift+Tab = Previous button
+                if key == Qt.Key.Key_Backtab:  # Shift+Tab
+                    self.btn_print.setFocus()
+                    return True
+        
+        return super().eventFilter(obj, event)
+    
     def keyPressEvent(self, event):
         """Handle ESC key"""
-        if event.key() == Qt.Key.Key_Escape:
+        key = event.key()
+        
+        # ESC = Close
+        if key == Qt.Key.Key_Escape:
             self.reject()
-        else:
-            super().keyPressEvent(event)
+            return
+        
+        # Tab navigation (kalau tidak ter-handle di eventFilter)
+        if key == Qt.Key.Key_Tab:
+            if self.btn_print.hasFocus():
+                self.btn_close.setFocus()
+            else:
+                self.btn_print.setFocus()
+            return
+        
+        # Shift+Tab
+        if key == Qt.Key.Key_Backtab:
+            if self.btn_close.hasFocus():
+                self.btn_print.setFocus()
+            else:
+                self.btn_close.setFocus()
+            return
+        
+        # Pass ke parent untuk handling lainnya
+        super().keyPressEvent(event)

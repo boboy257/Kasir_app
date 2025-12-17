@@ -243,14 +243,43 @@ class MainWindow(BaseWindow):
     
     def eventFilter(self, obj, event):
         """
-        Custom event filter untuk grid navigation
+        Custom event filter untuk grid navigation + header buttons
         
-        NOTE: Grid navigation tidak cocok dengan register_navigation
-        karena dynamic index dan 2D layout
+        FIXED: Handle Enter key untuk button header
         """
         if event.type() == QEvent.Type.KeyPress:
             
-            # Grid button navigation
+            # ========== HEADER BUTTONS (Riwayat, Settings, Logout) ==========
+            # NEW: Handle Enter key untuk button yang tidak punya index
+            if obj in (self.btn_riwayat, self.btn_settings, self.btn_logout):
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                    obj.click()  # ← Trigger click event
+                    return True
+                
+                # Arrow navigation antar header buttons
+                if event.key() == Qt.Key.Key_Right:
+                    if obj == self.btn_riwayat:
+                        self.btn_settings.setFocus()
+                        return True
+                    elif obj == self.btn_settings:
+                        self.btn_logout.setFocus()
+                        return True
+                
+                if event.key() == Qt.Key.Key_Left:
+                    if obj == self.btn_logout:
+                        self.btn_settings.setFocus()
+                        return True
+                    elif obj == self.btn_settings:
+                        self.btn_riwayat.setFocus()
+                        return True
+                
+                # Down = Jump to grid buttons
+                if event.key() == Qt.Key.Key_Down:
+                    if self.buttons and self.buttons[0].isVisible():
+                        self.buttons[0].setFocus()
+                        return True
+            
+            # ========== GRID BUTTONS NAVIGATION ==========
             current_index = obj.property("index")
             
             if current_index is not None:
@@ -259,13 +288,13 @@ class MainWindow(BaseWindow):
                 # Arrow Right
                 if event.key() == Qt.Key.Key_Right:
                     if (current_index + 1) < len(self.buttons) and \
-                       self.buttons[current_index + 1].isVisible():
+                    self.buttons[current_index + 1].isVisible():
                         next_index = current_index + 1
                 
                 # Arrow Left
                 elif event.key() == Qt.Key.Key_Left:
                     if (current_index - 1) >= 0 and \
-                       self.buttons[current_index - 1].isVisible():
+                    self.buttons[current_index - 1].isVisible():
                         next_index = current_index - 1
                 
                 # Arrow Down
@@ -274,7 +303,7 @@ class MainWindow(BaseWindow):
                     
                     # Jika sudah di baris bawah atau target tidak visible
                     if current_index >= self.max_col or \
-                       (target < len(self.buttons) and not self.buttons[target].isVisible()):
+                    (target < len(self.buttons) and not self.buttons[target].isVisible()):
                         self.btn_logout.setFocus()
                         return True
                     elif target < len(self.buttons):
@@ -287,7 +316,8 @@ class MainWindow(BaseWindow):
                     if target >= 0 and self.buttons[target].isVisible():
                         next_index = target
                     elif target < 0:
-                        self.btn_logout.setFocus()
+                        # Jump to header buttons
+                        self.btn_riwayat.setFocus()
                         return True
                 
                 # Enter = Click button
@@ -300,7 +330,7 @@ class MainWindow(BaseWindow):
                     self.buttons[next_index].setFocus()
                     return True
         
-        return super().eventFilter(obj, event)
+        return False  # ← FIXED: Return False instead of super()
     
     # ========== USER ROLE MANAGEMENT ==========
     

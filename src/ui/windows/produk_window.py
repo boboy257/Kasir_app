@@ -351,6 +351,10 @@ class ProdukWindow(BaseWindow):
         
         self.reset_form()
         self.muat_produk()
+        
+    def simpan(self):
+        """Alias untuk simpan_produk (agar Ctrl+S jalan)"""
+        self.simpan_produk()
     
     def hapus_produk(self):
         """Delete selected product (Delete key)"""
