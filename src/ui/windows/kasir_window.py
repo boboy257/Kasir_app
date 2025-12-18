@@ -1,6 +1,12 @@
+"""
+Kasir Window - REFACTORED with SmartNavigation
+===============================================
+100% Keyboard-driven POS system - Optimized for speed
+"""
+
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QHBoxLayout, QLineEdit, QLabel, 
-    QPushButton, QInputDialog, QDialog
+    QPushButton, QDialog
 )
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -24,20 +30,14 @@ from src.cetak_struk import cetak_struk_pdf
 
 class KasirWindow(BaseWindow):
     """
-    Kasir Window - 100% Keyboard Navigation
+    Kasir Window - Full keyboard navigation optimized for speed
     
-    Navigation Map:
-    - Barcode Input: Always return here after actions
-    - Number 0-9: Set qty shortcut
-    - F4: Search dialog
-    - F2: Edit qty (table selected)
-    - F8: Edit discount (table selected)
-    - Delete: Hapus item (table selected)
-    - F5: Reset cart
-    - F6: Pending/Recall
-    - F12: Payment
-    - Down: Ke table
-    - Up (at table row 0): Balik ke barcode
+    Target: < 3 detik per item
+    
+    Layout Zones:
+    - TOP: Barcode input + Button row (7 buttons)
+    - MIDDLE: Shopping cart table
+    - BOTTOM: Pending + Total + Bayar
     """
     
     def __init__(self):
@@ -50,19 +50,21 @@ class KasirWindow(BaseWindow):
         self.MAX_PENDING = 5
         
         self.setup_ui()
-        self.setup_shortcuts()
+        self.setup_navigation()
+        self.setup_global_shortcuts()
         
         self.setWindowTitle("Aplikasi Kasir - Mode Penjualan")
         self.setGeometry(100, 100, 1100, 600)
     
     def setup_ui(self):
+        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # TOP: Input & Controls
+        # ========== TOP ROW: Barcode + Buttons ==========
         top_layout = QHBoxLayout()
         
         lbl_barcode = QLabel("Scan Barcode:")
@@ -83,10 +85,10 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setPlaceholderText("Scan barcode... (↓ = Table, 0-9 = Qty)")
         self.barcode_input.setFixedHeight(40)
         self.barcode_input.returnPressed.connect(self.tambah_barang_ke_keranjang)
-        self.barcode_input.installEventFilter(self)
         
         style = StyleManager()
         
+        # Button row (7 buttons)
         self.btn_cari = QPushButton("Cari (F4)")
         self.btn_cari.setFixedHeight(40)
         self.btn_cari.setFixedWidth(80)
@@ -134,7 +136,7 @@ class KasirWindow(BaseWindow):
         top_layout.addWidget(self.btn_hapus)
         layout.addLayout(top_layout)
         
-        # TABLE
+        # ========== MIDDLE: TABLE ==========
         self.table = SmartTable(0, 6)
         self.table.setHorizontalHeaderLabels(["ID", "Nama Produk", "Harga", "Qty", "Disc", "Subtotal"])
         self.table.setColumnHidden(0, True)
@@ -143,11 +145,10 @@ class KasirWindow(BaseWindow):
         self.table.set_column_width(3, 50)
         self.table.set_column_width(4, 100)
         self.table.set_column_width(5, 120)
-        self.table.installEventFilter(self)
         
         layout.addWidget(self.table)
         
-        # BOTTOM
+        # ========== BOTTOM: Actions ==========
         bottom_layout = QHBoxLayout()
         
         self.btn_pending = QPushButton("Pending (F6)")
@@ -174,14 +175,108 @@ class KasirWindow(BaseWindow):
         layout.addLayout(bottom_layout)
         
         self.update_pending_button()
+    
+    def setup_navigation(self):
+        """
+        ✨ SMART NAVIGATION SETUP
         
-      
+        Zones:
+        1. Barcode input (PRIMARY - always return here!)
+        2. Button row (5 buttons - circular)
+        3. Table (middle zone)
+        4. Bottom buttons (2 buttons)
+        
+        Critical: Focus ALWAYS returns to barcode after ANY action!
+        """
+        
+        # ===== ZONE 1: BARCODE INPUT =====
+        # Number keys 0-9 handled in keyPressEvent (special case)
+        # Down = ke button row atau table
+        self.barcode_input.installEventFilter(self)
+        
+        # ===== ZONE 2: BUTTON ROW (Circular!) =====
+        button_row = [
+            self.btn_cari,
+            self.btn_qty,
+            self.btn_diskon,
+            self.btn_reset,
+            self.btn_hapus
+        ]
+        
+        self.register_navigation_row(button_row, circular=True)
+        
+        # All buttons: Enter = Click, Up = Barcode
+        for btn in button_row:
+            self.register_navigation(btn, {
+                Qt.Key.Key_Return: lambda b=btn: b.click(),
+                Qt.Key.Key_Up: self.barcode_input,
+                Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table) if self.table.rowCount() > 0 else None
+            })
+        
+        # ===== ZONE 3: TABLE =====
+        self.register_table_callbacks(self.table, {
+            'edit': self.ubah_qty_item,         # F2 / Enter
+            'delete': self.hapus_item_terpilih, # Delete
+            'focus_up': self.barcode_input,     # Up at row 0 → Barcode
+            'focus_down': self.btn_pending      # Down at last → Pending
+        })
+        self.table.installEventFilter(self)
+        
+        # ===== ZONE 4: BOTTOM BUTTONS =====
+        self.register_navigation_row([self.btn_pending, self.btn_bayar], circular=False)
+        
+        for btn in [self.btn_pending, self.btn_bayar]:
+            self.register_navigation(btn, {
+                Qt.Key.Key_Return: lambda b=btn: b.click(),
+                Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table) if self.table.rowCount() > 0 else self.barcode_input.setFocus()
+            })
+    
+    def setup_global_shortcuts(self):
+        """Global F-key shortcuts (preserve existing functionality)"""
+        QShortcut(QKeySequence("F2"), self).activated.connect(self.ubah_qty_item)
+        QShortcut(QKeySequence("F4"), self).activated.connect(self.buka_dialog_cari)
+        QShortcut(QKeySequence("F5"), self).activated.connect(self.reset_keranjang_confirm)
+        QShortcut(QKeySequence("F6"), self).activated.connect(self.toggle_pending)
+        QShortcut(QKeySequence("F8"), self).activated.connect(self.ubah_diskon_item)
+        QShortcut(QKeySequence("F12"), self).activated.connect(self.tampilkan_dialog_bayar)
+        QShortcut(QKeySequence("Delete"), self).activated.connect(self.hapus_item_terpilih)
+    
+    def eventFilter(self, obj, event):
+        """Handle special cases: Number keys 0-9 for qty, Barcode Down navigation"""
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            # ===== BARCODE INPUT: Number keys 0-9 =====
+            if obj == self.barcode_input:
+                
+                # Number keys 0-9: Set qty shortcut
+                if Qt.Key.Key_0 <= key <= Qt.Key.Key_9 and not event.modifiers():
+                    angka = key - Qt.Key.Key_0
+                    self.qty_shortcut = 1 if angka == 0 else angka
+                    self.update_qty_label()
+                    return True
+                
+                # Down: ke button row atau table
+                if key == Qt.Key.Key_Down:
+                    if self.table.rowCount() > 0:
+                        self.focus_table_first_row(self.table)
+                    else:
+                        self.btn_cari.setFocus()
+                    return True
+            
+            # ✅ TABLE UP MANUAL
+            elif obj == self.table:
+                if key == Qt.Key.Key_Up:
+                    if self.table.currentRow() == 0:
+                        self.barcode_input.setFocus()
+                        self.barcode_input.selectAll()
+                        return True
+        
+        return super().eventFilter(obj, event)
+    
     def keyPressEvent(self, event):
-        """Handle ESC key untuk keluar kasir"""
+        """Handle ESC with confirmation"""
         if event.key() == Qt.Key.Key_Escape:
-            # Cek apakah ada transaksi aktif ATAU ada pending
             if self.keranjang_belanja or self.daftar_pending:
-                # Buat pesan yang informatif
                 pesan = "Yakin ingin keluar?\n\n"
                 
                 if self.keranjang_belanja:
@@ -195,82 +290,15 @@ class KasirWindow(BaseWindow):
                 if self.confirm_action("Keluar Kasir", pesan):
                     self.close()
             else:
-                # Keranjang kosong DAN tidak ada pending
                 self.close()
             return
         
         super().keyPressEvent(event)
-             
-    def setup_shortcuts(self):
-        """Global F-key shortcuts"""
-        QShortcut(QKeySequence("F2"), self).activated.connect(self.ubah_qty_item)
-        QShortcut(QKeySequence("F4"), self).activated.connect(self.buka_dialog_cari)
-        QShortcut(QKeySequence("F5"), self).activated.connect(self.reset_keranjang_confirm)
-        QShortcut(QKeySequence("F6"), self).activated.connect(self.toggle_pending)
-        QShortcut(QKeySequence("F8"), self).activated.connect(self.ubah_diskon_item)
-        QShortcut(QKeySequence("F12"), self).activated.connect(self.tampilkan_dialog_bayar)
-        QShortcut(QKeySequence("Delete"), self).activated.connect(self.hapus_item_terpilih)
     
-    def eventFilter(self, obj, event):
-        """Handle all keyboard navigation"""
-        if event.type() == QEvent.Type.KeyPress:
-            key = event.key()
-            
-            # ===== BARCODE INPUT =====
-            if obj == self.barcode_input:
-                # Number keys 0-9: Set qty shortcut
-                if Qt.Key.Key_0 <= key <= Qt.Key.Key_9 and not event.modifiers():
-                    angka = key - Qt.Key.Key_0
-                    self.qty_shortcut = 1 if angka == 0 else angka
-                    self.update_qty_label()
-                    return True
-                
-                # Down arrow: Jump to table
-                if key == Qt.Key.Key_Down:
-                    if self.table.rowCount() > 0:
-                        self.table.setFocus()
-                        self.table.selectRow(0)
-                    return True
-            
-            # ===== TABLE =====
-            elif obj == self.table:
-                # Up at row 0: Back to barcode input
-                if key == Qt.Key.Key_Up:
-                    if self.table.currentRow() == 0:
-                        self.barcode_input.setFocus()
-                        self.barcode_input.selectAll()
-                        return True
-                
-                # F2 or Enter: Edit qty
-                if key in (Qt.Key.Key_F2, Qt.Key.Key_Return, Qt.Key.Key_Enter):
-                    self.ubah_qty_item()
-                    return True
-                
-                # Delete: Remove item
-                if key == Qt.Key.Key_Delete:
-                    self.hapus_item_terpilih()
-                    return True
-                
-                # F8: Edit discount
-                if key == Qt.Key.Key_F8:
-                    self.ubah_diskon_item()
-                    return True
-        
-        return super().eventFilter(obj, event)
-    
-    def handle_escape(self):
-        """ESC: Confirm exit if cart not empty"""
-        if self.keranjang_belanja:
-            if self.confirm_action("Keluar", "Transaksi belum selesai. Yakin keluar?"):
-                self.close()
-                return True
-            return False
-        else:
-            self.close()
-            return True
+    # ========== QTY LABEL UPDATE ==========
     
     def update_qty_label(self):
-        """Update qty shortcut label"""
+        """Update qty shortcut label visual"""
         if self.qty_shortcut > 1:
             self.lbl_qty_shortcut.setText(f"Qty: {self.qty_shortcut}x")
             self.lbl_qty_shortcut.setStyleSheet("""
@@ -290,8 +318,10 @@ class KasirWindow(BaseWindow):
                 }
             """)
     
+    # ========== CART OPERATIONS ==========
+    
     def tambah_barang_ke_keranjang(self):
-        """Add item to cart"""
+        """Add item to cart (PRIMARY FUNCTION - Speed critical!)"""
         barcode = self.barcode_input.text().strip()
         if not barcode:
             return
@@ -301,6 +331,7 @@ class KasirWindow(BaseWindow):
         if produk:
             id_produk, nama, harga, stok_db = produk
             
+            # Validasi stok
             if stok_db <= 0:
                 self.show_warning("Stok Habis", f"Stok '{nama}' kosong!")
                 self.barcode_input.clear()
@@ -316,6 +347,7 @@ class KasirWindow(BaseWindow):
                 self.barcode_input.setFocus()
                 return
             
+            # Check if item already in cart
             item_found = False
             for item in self.keranjang_belanja:
                 if item['id'] == id_produk:
@@ -331,6 +363,7 @@ class KasirWindow(BaseWindow):
                     item_found = True
                     break
             
+            # Add new item
             if not item_found:
                 self.keranjang_belanja.append({
                     'id': id_produk,
@@ -345,15 +378,17 @@ class KasirWindow(BaseWindow):
             self.qty_shortcut = 1
             self.update_qty_label()
         else:
+            # Barcode not found - offer search
             reply = self.confirm_action("404", f"Barcode '{barcode}' tidak ada.\nCari manual?")
             if reply:
                 self.buka_dialog_cari()
         
+        # CRITICAL: Always return to barcode!
         self.barcode_input.clear()
         self.barcode_input.setFocus()
     
     def update_tabel_dan_total(self):
-        """Update table and total"""
+        """Update table and total display"""
         self.table.clear_table()
         self.total_transaksi = 0
         
@@ -390,8 +425,10 @@ class KasirWindow(BaseWindow):
         if self.confirm_action("Batal Transaksi", "Kosongkan keranjang?"):
             self.reset_keranjang()
     
+    # ========== ITEM ACTIONS (Always return to barcode!) ==========
+    
     def ubah_qty_item(self):
-        """Edit quantity - Always return to barcode input after"""
+        """Edit quantity"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Item", "Pilih item di tabel dulu!")
@@ -400,6 +437,7 @@ class KasirWindow(BaseWindow):
         
         item = self.keranjang_belanja[row]
         
+        # Get stok from database
         conn = create_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT stok FROM produk WHERE id = ?", (item['id'],))
@@ -407,6 +445,7 @@ class KasirWindow(BaseWindow):
         conn.close()
         stok_db = res[0] if res else 0
         
+        from PyQt6.QtWidgets import QInputDialog
         qty_baru, ok = QInputDialog.getInt(
             self, "Ubah Jumlah", 
             f"Stok: {stok_db}\nJumlah baru:", 
@@ -423,7 +462,7 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def ubah_diskon_item(self):
-        """Edit discount - Always return to barcode input after"""
+        """Edit discount"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Item", "Pilih item di tabel dulu!")
@@ -432,6 +471,7 @@ class KasirWindow(BaseWindow):
         
         item = self.keranjang_belanja[row]
         
+        from PyQt6.QtWidgets import QInputDialog
         diskon_baru, ok = QInputDialog.getInt(
             self, "Diskon Manual", 
             f"Potongan (Rp) untuk '{item['nama']}':",
@@ -445,7 +485,7 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def hapus_item_terpilih(self):
-        """Delete item - Always return to barcode input after"""
+        """Delete item"""
         row = self.table.currentRow()
         if row >= 0:
             nama = self.keranjang_belanja[row]['nama']
@@ -457,8 +497,10 @@ class KasirWindow(BaseWindow):
         
         self.barcode_input.setFocus()
     
+    # ========== DIALOGS (Always return to barcode!) ==========
+    
     def buka_dialog_cari(self):
-        """Open search dialog - Return to barcode after"""
+        """Open search dialog"""
         dialog = SearchDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             if dialog.selected_barcode:
@@ -468,7 +510,7 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def tampilkan_dialog_bayar(self):
-        """Payment dialog - Return to barcode after"""
+        """Payment dialog"""
         if not self.keranjang_belanja:
             self.show_warning("Kosong", "Keranjang kosong.")
             self.barcode_input.setFocus()
@@ -481,14 +523,16 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def toggle_pending(self):
-        """Pending/Recall - Return to barcode after"""
+        """Pending/Recall"""
         if self.keranjang_belanja:
+            # Save to pending
             if len(self.daftar_pending) >= self.MAX_PENDING:
                 self.show_warning("Pending Penuh", 
                     f"Maksimal {self.MAX_PENDING} transaksi pending.")
                 self.barcode_input.setFocus()
                 return
             
+            from PyQt6.QtWidgets import QInputDialog
             note, ok = QInputDialog.getText(
                 self, "Catatan Pending", 
                 "Catatan (opsional):"
@@ -511,6 +555,7 @@ class KasirWindow(BaseWindow):
                     f"Total Pending: {len(self.daftar_pending)}")
         
         elif self.daftar_pending:
+            # Recall from pending
             dialog = PendingDialog(self.daftar_pending, self)
             result = dialog.exec()
             
@@ -523,7 +568,7 @@ class KasirWindow(BaseWindow):
                     self.daftar_pending.pop(idx)
                     self.update_pending_button()
             
-            elif result == 2:
+            elif result == 2:  # Delete
                 idx = dialog.selected_index
                 if idx is not None:
                     self.daftar_pending.pop(idx)
@@ -553,8 +598,10 @@ class KasirWindow(BaseWindow):
                 QPushButton:focus { border: 2px solid #fff; }
             """)
     
+    # ========== SAVE TRANSACTION ==========
+    
     def simpan_transaksi(self, uang_diterima, kembalian):
-        """Save transaction"""
+        """Save transaction to database"""
         conn = create_connection()
         cursor = conn.cursor()
         
@@ -562,12 +609,14 @@ class KasirWindow(BaseWindow):
             no_faktur = generate_nomor_faktur()
             tanggal_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
+            # Insert transaksi
             cursor.execute(
                 "INSERT INTO transaksi (no_faktur, tanggal, total) VALUES (?, ?, ?)",
                 (no_faktur, tanggal_sekarang, self.total_transaksi)
             )
             transaksi_id = cursor.lastrowid
             
+            # Insert detail & update stok
             for item in self.keranjang_belanja:
                 nilai_diskon = item.get('diskon', 0)
                 cursor.execute("""
@@ -579,13 +628,16 @@ class KasirWindow(BaseWindow):
             
             conn.commit()
             
+            # Log aktivitas
             username = getattr(self, 'current_user', 'admin')
             log_aktivitas_pengguna(username, "Transaksi Penjualan", 
                 f"ID: {transaksi_id}, Total: Rp {self.total_transaksi}")
             
+            # Prepare struk data
             data_struk = [(item['nama'], int(item['harga']), item['qty'], int(item['subtotal'])) 
                           for item in self.keranjang_belanja]
             
+            # Generate struk PDF
             filepath = None
             try:
                 filepath = cetak_struk_pdf(
@@ -596,6 +648,7 @@ class KasirWindow(BaseWindow):
             except Exception as e:
                 print(f"Error cetak struk: {e}")
             
+            # Preview dialog
             tanggal_str = datetime.now().strftime('%d/%m/%Y %H:%M')
             preview_dialog = PreviewDialog(
                 no_faktur, tanggal_str, username, data_struk,

@@ -128,7 +128,7 @@ class PreviewDialog(QDialog):
         self.btn_print.setDefault(True)
         self.btn_print.installEventFilter(self)
         
-        self.btn_close = QPushButton("✖️ Tutup")
+        self.btn_close = QPushButton("✖️ Tutup (ESC)")
         self.btn_close.setObjectName("btnClose")
         self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_close.clicked.connect(self.reject)
@@ -140,7 +140,8 @@ class PreviewDialog(QDialog):
         
         # Focus ke tombol print
         self.btn_print.setFocus()
-
+        self.text_preview.installEventFilter(self)
+        
     def render_preview(self):
         """Render preview struk dalam format text"""
         from src.settings import load_settings
@@ -204,31 +205,43 @@ class PreviewDialog(QDialog):
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
             
-            # Tombol Print
-            if obj == self.btn_print:
+            # ===== TEXT PREVIEW (QTextEdit) =====
+            if obj == self.text_preview:
+                # Down dari preview → Button Print
+                if key == Qt.Key.Key_Down:
+                    self.btn_print.setFocus()
+                    return True
+            
+            # ===== BUTTON PRINT =====
+            elif obj == self.btn_print:
                 if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
                     self.confirm_print()
                     return True
+                
+                # Right → Close button
                 if key == Qt.Key.Key_Right:
                     self.btn_close.setFocus()
                     return True
+                
+                # ✅ TAMBAH: Up → Preview
+                if key == Qt.Key.Key_Up:
+                    self.text_preview.setFocus()
+                    return True
             
-            # Tombol Close
+            # ===== BUTTON CLOSE =====
             elif obj == self.btn_close:
                 if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
                     self.reject()
                     return True
-                if key == Qt.Key.Key_Left:
-                    self.btn_print.setFocus()
-                    return True
-                # Left = Previous button
+                
+                # Left → Print button
                 if key == Qt.Key.Key_Left:
                     self.btn_print.setFocus()
                     return True
                 
-                # Shift+Tab = Previous button
-                if key == Qt.Key.Key_Backtab:  # Shift+Tab
-                    self.btn_print.setFocus()
+                # ✅ TAMBAH: Up → Preview
+                if key == Qt.Key.Key_Up:
+                    self.text_preview.setFocus()
                     return True
         
         return super().eventFilter(obj, event)
