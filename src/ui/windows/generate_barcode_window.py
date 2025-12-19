@@ -1,3 +1,9 @@
+"""
+Generate Barcode Window - SmartNavigation REFACTORED
+=====================================================
+Complex layout: Form left + Table right dengan memory navigation
+"""
+
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QWidget, QHBoxLayout,
     QLineEdit, QLabel, QPushButton, QFormLayout, QFrame
@@ -16,6 +22,7 @@ from src.database import (
 
 
 class GenerateBarcodeWindow(BaseWindow):
+    """Barcode generator dengan split layout navigation"""
     
     def __init__(self):
         super().__init__()
@@ -24,7 +31,7 @@ class GenerateBarcodeWindow(BaseWindow):
         self.setup_navigation()
         self.muat_produk()
         
-        # Preview timer untuk live preview
+        # Preview timer
         self.preview_timer = QTimer()
         self.preview_timer.setSingleShot(True)
         self.preview_timer.timeout.connect(self.update_preview)
@@ -33,6 +40,7 @@ class GenerateBarcodeWindow(BaseWindow):
         self.setGeometry(100, 100, 1100, 650)
     
     def setup_ui(self):
+        """Setup UI - Split layout"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -53,7 +61,7 @@ class GenerateBarcodeWindow(BaseWindow):
         lbl_judul.setStyleSheet("font-size: 18px; color: #2196F3; margin-bottom: 10px; border: none;")
         left_layout.addWidget(lbl_judul)
         
-        # Form Input
+        # Form
         form_layout = QFormLayout()
         form_layout.setVerticalSpacing(15)
         
@@ -71,7 +79,7 @@ class GenerateBarcodeWindow(BaseWindow):
         
         left_layout.addLayout(form_layout)
         
-        # Preview Area
+        # Preview
         left_layout.addSpacing(20)
         left_layout.addWidget(QLabel("Preview:", styleSheet=lbl_style))
         
@@ -91,7 +99,7 @@ class GenerateBarcodeWindow(BaseWindow):
         
         left_layout.addSpacing(20)
         
-        # Action Buttons
+        # Action buttons
         style = StyleManager()
         
         self.btn_simpan = QPushButton("Simpan Gambar")
@@ -99,7 +107,7 @@ class GenerateBarcodeWindow(BaseWindow):
         self.btn_simpan.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_simpan.clicked.connect(self.simpan_barcode)
         
-        self.btn_generate_all = QPushButton("Generate Semua Stok")
+        self.btn_generate_all = QPushButton("Generate Semua")
         self.btn_generate_all.setStyleSheet(style.get_button_style('warning'))
         self.btn_generate_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_generate_all.clicked.connect(self.generate_semua_barcode)
@@ -113,7 +121,7 @@ class GenerateBarcodeWindow(BaseWindow):
         # RIGHT: Table
         right_container = QVBoxLayout()
         
-        # Search Bar
+        # Search
         search_layout = QHBoxLayout()
         lbl_cari = QLabel("🔍 Cari Produk:")
         lbl_cari.setStyleSheet("border: none;")
@@ -137,7 +145,7 @@ class GenerateBarcodeWindow(BaseWindow):
         
         # Navigation info
         right_container.addWidget(QLabel(
-            "F2/Enter=Load | Ctrl+↑↓=Jump | ESC=Close",
+            "F2/Enter=Load | ←→=Form↔Table | ESC=Close",
             styleSheet="color: #777; font-size: 11px; font-style: italic; border: none;"
         ))
         
@@ -146,12 +154,18 @@ class GenerateBarcodeWindow(BaseWindow):
         self.input_barcode.setFocus()
     
     def setup_navigation(self):
-        """Complex layout - form left, table right"""
-        # Form navigation (vertical)
+        """
+        SmartNavigation untuk split layout:
+        - Left side: Form vertical chain
+        - Right side: Search + Table
+        - Memory navigation: Form ↔ Table
+        """
+        
+        # Left side: Vertical form chain
         self.register_navigation(self.input_barcode, {
             Qt.Key.Key_Return: self.input_nama,
             Qt.Key.Key_Down: self.input_nama,
-            Qt.Key.Key_Right: self.input_cari  # Jump to search
+            Qt.Key.Key_Right: self.input_cari  # Jump to right
         })
         
         self.register_navigation(self.input_nama, {
@@ -161,7 +175,7 @@ class GenerateBarcodeWindow(BaseWindow):
             Qt.Key.Key_Right: self.input_cari
         })
         
-        # Buttons
+        # Buttons (vertical)
         self.register_navigation(self.btn_simpan, {
             Qt.Key.Key_Return: self.simpan_barcode,
             Qt.Key.Key_Down: self.btn_generate_all,
@@ -175,25 +189,31 @@ class GenerateBarcodeWindow(BaseWindow):
             Qt.Key.Key_Right: lambda: self.focus_table_first_row(self.table_produk)
         })
         
-        # Search input (right side)
+        # Right side: Search
         self.register_navigation(self.input_cari, {
             Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_produk),
             Qt.Key.Key_Left: self.input_barcode
         })
         
-        # Table navigation
+        # Table
         self.register_table_callbacks(self.table_produk, {
-            'edit': self.isi_form,  # F2 or Enter
+            'edit': self.isi_form,
             'focus_up': self.input_cari,
             'focus_down': self.btn_simpan
         })
+        
+        # Table: Left = Back to form
+        self.register_navigation(self.table_produk, {
+            Qt.Key.Key_Left: self.input_barcode
+        })
     
+    # Preview
     def live_preview_timer(self):
         """Trigger preview after typing pause"""
         self.preview_timer.start(300)
     
     def update_preview(self):
-        """Live preview barcode saat user ketik"""
+        """Live preview barcode"""
         barcode_val = self.input_barcode.text().strip()
         nama_val = self.input_nama.text().strip()
         
@@ -213,7 +233,7 @@ class GenerateBarcodeWindow(BaseWindow):
             buffer.seek(0)
             img = Image.open(buffer)
             
-            # Add text below barcode
+            # Add text below
             new_height = img.height + 40
             new_img = Image.new('RGB', (img.width, new_height), 'white')
             new_img.paste(img, (0, 0))
@@ -238,6 +258,7 @@ class GenerateBarcodeWindow(BaseWindow):
         except Exception as e:
             self.lbl_preview.setText(f"Gagal Preview: {e}")
     
+    # Form operations
     def isi_form(self):
         """Load data dari table ke form"""
         row = self.table_produk.currentRow()
@@ -264,7 +285,7 @@ class GenerateBarcodeWindow(BaseWindow):
         self.tampilkan_tabel(data)
     
     def tampilkan_tabel(self, data):
-        """Display products in table"""
+        """Display products"""
         self.table_produk.clear_table()
         
         from PyQt6.QtWidgets import QTableWidgetItem
@@ -276,7 +297,7 @@ class GenerateBarcodeWindow(BaseWindow):
             self.table_produk.setItem(row, 2, QTableWidgetItem(nama))
     
     def simpan_barcode(self):
-        """Save single barcode image"""
+        """Save single barcode"""
         barcode = self.input_barcode.text().strip()
         nama = self.input_nama.text().strip()
         
@@ -297,7 +318,7 @@ class GenerateBarcodeWindow(BaseWindow):
             self.show_error("Error", str(e))
     
     def generate_semua_barcode(self):
-        """Generate all barcodes for all products"""
+        """Generate all barcodes"""
         if self.confirm_action("Konfirmasi", "Generate semua stok?"):
             try:
                 hasil = generate_semua_barcode_gambar()

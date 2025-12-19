@@ -1,7 +1,35 @@
+# ================================================================
+# Kasir App - Requirements
+# ================================================================
+# Install: pip install -r requirements.txt
+# Python: 3.10+
+# ================================================================
+
+# GUI Framework
 PyQt6==6.10.0
-reportlab==4.4.5
-python-barcode==0.16.0
-pillow==11.0.0
+
+# Security & Password Hashing
 bcrypt==5.0.0
+
+# Barcode Generation
+python-barcode==0.16.1
+Pillow==12.0.0
+
+# PDF Generation (Struk & Reports)
+reportlab==4.4.5
+
+# Charts & Visualization (Dashboard)
 matplotlib==3.10.7
+
+# Task Scheduling (Auto Backup)
 schedule==1.2.2
+
+# Excel Support (Import/Export .xlsx)
+openpyxl==3.1.5
+
+# ================================================================
+# Note: Sub-dependencies akan otomatis terinstall oleh pip:
+# - PyQt6-Qt6, PyQt6-sip (dari PyQt6)
+# - numpy, contourpy, cycler, etc (dari matplotlib)
+# - charset-normalizer, packaging, dll (dari berbagai library)
+# ================================================================

@@ -1,3 +1,9 @@
+"""
+Laporan Window - SmartNavigation REFACTORED
+============================================
+Filter row (circular) + table + action buttons
+"""
+
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QLabel, QDateEdit, QFrame,
     QFileDialog
@@ -14,6 +20,7 @@ from src.config.paths import EXPORT_FOLDER
 
 
 class LaporanWindow(BaseWindow):
+    """Sales report dengan smart button row navigation"""
     
     def __init__(self):
         super().__init__()
@@ -30,12 +37,14 @@ class LaporanWindow(BaseWindow):
         self.muat_laporan()
     
     def setup_ui(self):
+        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(20, 20, 20, 20)
         
+        # Filter frame
         filter_frame = QFrame()
         filter_frame.setStyleSheet(
             "background-color: #181818; border-radius: 8px; border: 1px solid #333;"
@@ -56,7 +65,7 @@ class LaporanWindow(BaseWindow):
         
         style = StyleManager()
         
-        self.btn_filter = QPushButton("Terapkan Filter")
+        self.btn_filter = QPushButton("Filter")
         self.btn_filter.setStyleSheet(style.get_button_style('primary'))
         self.btn_filter.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_filter.clicked.connect(self.muat_laporan)
@@ -66,12 +75,12 @@ class LaporanWindow(BaseWindow):
         self.btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reset.clicked.connect(self.reset_filter)
         
-        self.btn_csv = QPushButton("Export CSV")
+        self.btn_csv = QPushButton("CSV")
         self.btn_csv.setStyleSheet(style.get_button_style('success'))
         self.btn_csv.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_csv.clicked.connect(self.export_csv)
         
-        self.btn_pdf = QPushButton("Export PDF")
+        self.btn_pdf = QPushButton("PDF")
         self.btn_pdf.setStyleSheet(style.get_button_style('danger'))
         self.btn_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf.clicked.connect(self.export_pdf)
@@ -88,6 +97,7 @@ class LaporanWindow(BaseWindow):
         
         layout.addWidget(filter_frame)
         
+        # Table
         self.table = SmartTable(0, 6)
         self.table.setHorizontalHeaderLabels([
             "Tanggal", "Nama Produk", "Jumlah", "Harga", "Disc", "Subtotal"
@@ -101,9 +111,10 @@ class LaporanWindow(BaseWindow):
         
         layout.addWidget(self.table)
         
+        # Footer
         footer_layout = QHBoxLayout()
         
-        self.lbl_total_periode = QLabel("Total Omset Periode Ini: Rp 0")
+        self.lbl_total_periode = QLabel("Total Omset: Rp 0")
         self.lbl_total_periode.setStyleSheet(
             "font-size: 18px; color: #00E5FF; font-weight: bold;"
         )
@@ -115,41 +126,51 @@ class LaporanWindow(BaseWindow):
         self.date_start.setFocus()
     
     def setup_navigation(self):
+        """
+        SmartNavigation:
+        - Filter row: 6 buttons circular
+        - Table: Up/Down
+        """
+        
+        # Filter + action buttons as single circular row
+        button_row = [
+            self.date_start,
+            self.date_end,
+            self.btn_filter,
+            self.btn_reset,
+            self.btn_csv,
+            self.btn_pdf
+        ]
+        
+        self.register_navigation_row(button_row, circular=True)
+        
+        # Custom behavior per widget
+        # Dates: Enter = Next
         self.register_navigation(self.date_start, {
-            Qt.Key.Key_Return: self.date_end
+            Qt.Key.Key_Return: self.date_end,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
         })
         
         self.register_navigation(self.date_end, {
-            Qt.Key.Key_Return: self.btn_filter
+            Qt.Key.Key_Return: self.btn_filter,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
         })
         
-        self.register_navigation(self.btn_filter, {
-            Qt.Key.Key_Return: self.muat_laporan,
-            Qt.Key.Key_Right: self.btn_reset
-        })
+        # Buttons: Enter = Click, Down = Table
+        for btn in [self.btn_filter, self.btn_reset, self.btn_csv, self.btn_pdf]:
+            self.register_navigation(btn, {
+                Qt.Key.Key_Return: lambda b=btn: b.click(),
+                Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
+            })
         
-        self.register_navigation(self.btn_reset, {
-            Qt.Key.Key_Return: self.reset_filter,
-            Qt.Key.Key_Left: self.btn_filter,
-            Qt.Key.Key_Right: self.btn_csv
-        })
-        
-        self.register_navigation(self.btn_csv, {
-            Qt.Key.Key_Return: self.export_csv,
-            Qt.Key.Key_Left: self.btn_reset,
-            Qt.Key.Key_Right: self.btn_pdf
-        })
-        
-        self.register_navigation(self.btn_pdf, {
-            Qt.Key.Key_Return: self.export_pdf,
-            Qt.Key.Key_Left: self.btn_csv
-        })
-        
+        # Table: Up = Back to filter
         self.register_table_callbacks(self.table, {
-            'focus_up': self.btn_filter
+            'focus_up': self.date_start
         })
     
+    # Data operations
     def muat_laporan(self):
+        """Load report data"""
         start_date = self.date_start.date().toString("yyyy-MM-dd")
         end_date = self.date_end.date().toString("yyyy-MM-dd")
         
@@ -176,11 +197,13 @@ class LaporanWindow(BaseWindow):
         self.lbl_total_periode.setText(f"Total Omset: Rp {int(total_omset):,}")
     
     def reset_filter(self):
+        """Reset to today"""
         self.date_start.setDate(QDate.currentDate())
         self.date_end.setDate(QDate.currentDate())
         self.muat_laporan()
     
     def export_csv(self):
+        """Export to CSV"""
         start_date = self.date_start.date().toString("yyyy-MM-dd")
         end_date = self.date_end.date().toString("yyyy-MM-dd")
         hasil = ambil_laporan_filter(start_date, end_date)
@@ -210,6 +233,7 @@ class LaporanWindow(BaseWindow):
             self.show_error("Error", str(e))
     
     def export_pdf(self):
+        """Export to PDF"""
         start_date = self.date_start.date().toString("yyyy-MM-dd")
         end_date = self.date_end.date().toString("yyyy-MM-dd")
         hasil = ambil_laporan_filter(start_date, end_date)
@@ -237,7 +261,6 @@ class LaporanWindow(BaseWindow):
             styles = getSampleStyleSheet()
             story = []
             
-            tanggal_lengkap = datetime.now().strftime("%d %B %Y")
             story.append(Paragraph(
                 f"<b>Laporan Penjualan ({start_date} s/d {end_date})</b>",
                 styles['Title']

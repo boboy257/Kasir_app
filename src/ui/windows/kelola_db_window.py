@@ -1,3 +1,9 @@
+"""
+Kelola DB Window - SmartNavigation REFACTORED
+==============================================
+Grid navigation untuk button groups
+"""
+
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QPushButton, QLabel,
     QFileDialog, QGroupBox, QHBoxLayout, QFrame
@@ -16,6 +22,7 @@ from src.database import (
 
 
 class KelolaDBWindow(BaseWindow):
+    """Database management dengan grid button navigation"""
     
     def __init__(self):
         super().__init__()
@@ -27,6 +34,7 @@ class KelolaDBWindow(BaseWindow):
         self.setGeometry(100, 100, 600, 550)
     
     def setup_ui(self):
+        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -34,7 +42,7 @@ class KelolaDBWindow(BaseWindow):
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(15)
         
-        # Info Database
+        # Info panel
         info_frame = QFrame()
         info_frame.setStyleSheet(
             "background-color: #181818; border-radius: 5px; border: 1px solid #333;"
@@ -51,7 +59,7 @@ class KelolaDBWindow(BaseWindow):
         
         layout.addWidget(info_frame)
         
-        # Backup & Restore Group
+        # Backup & Restore
         grp_backup = QGroupBox("Backup & Pemulihan")
         grp_backup.setStyleSheet(
             "QGroupBox { border: 1px solid #333; border-radius: 5px; "
@@ -61,12 +69,10 @@ class KelolaDBWindow(BaseWindow):
         
         lay_backup = QVBoxLayout()
         
-        style = StyleManager()
-        
-        self.btn_backup = QPushButton("💾  Backup Database")
+        self.btn_backup = QPushButton("💾 Backup Database")
         self.btn_backup.clicked.connect(self.backup_db)
         
-        self.btn_restore = QPushButton("♻️  Restore Database")
+        self.btn_restore = QPushButton("♻️ Restore Database")
         self.btn_restore.clicked.connect(self.restore_db)
         
         lay_backup.addWidget(self.btn_backup)
@@ -74,7 +80,7 @@ class KelolaDBWindow(BaseWindow):
         grp_backup.setLayout(lay_backup)
         layout.addWidget(grp_backup)
         
-        # Import Export Group
+        # Import Export
         grp_data = QGroupBox("Migrasi Data Produk")
         grp_data.setStyleSheet(
             "QGroupBox { border: 1px solid #333; border-radius: 5px; "
@@ -95,7 +101,7 @@ class KelolaDBWindow(BaseWindow):
         grp_data.setLayout(lay_data)
         layout.addWidget(grp_data)
         
-        # Maintenance Group
+        # Maintenance
         grp_maint = QGroupBox("Maintenance")
         grp_maint.setStyleSheet(
             "QGroupBox { color: #f44336; border: 1px solid #552222; "
@@ -105,11 +111,13 @@ class KelolaDBWindow(BaseWindow):
         
         lay_maint = QVBoxLayout()
         
-        self.btn_reset_transaksi = QPushButton("🗑️  Hapus Riwayat Transaksi")
+        style = StyleManager()
+        
+        self.btn_reset_transaksi = QPushButton("🗑️ Hapus Riwayat Transaksi")
         self.btn_reset_transaksi.setStyleSheet(style.get_button_style('danger'))
         self.btn_reset_transaksi.clicked.connect(self.reset_transaksi)
         
-        self.btn_vacuum = QPushButton("🧹  Optimize / Vacuum")
+        self.btn_vacuum = QPushButton("🧹 Optimize / Vacuum")
         self.btn_vacuum.clicked.connect(self.vacuum_db)
         
         lay_maint.addWidget(self.btn_reset_transaksi)
@@ -119,7 +127,7 @@ class KelolaDBWindow(BaseWindow):
         
         layout.addStretch()
         
-        lbl_nav = QLabel("Arrow & Enter | ESC=Close")
+        lbl_nav = QLabel("↑↓←→=Navigate | Enter=Execute | ESC=Close")
         lbl_nav.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_nav.setStyleSheet("font-size: 11px; color: #777; font-style: italic;")
         layout.addWidget(lbl_nav)
@@ -128,56 +136,41 @@ class KelolaDBWindow(BaseWindow):
         self.btn_backup.setFocus()
     
     def setup_navigation(self):
-        """Grid-style navigation untuk button layout"""
-        # Vertical navigation (Down/Up)
-        self.register_navigation(self.btn_backup, {
-            Qt.Key.Key_Down: self.btn_restore,
-            Qt.Key.Key_Return: self.backup_db
-        })
+        """
+        SmartNavigation: Grid layout untuk button groups
+        3 groups vertical, beberapa horizontal
+        """
         
-        self.register_navigation(self.btn_restore, {
-            Qt.Key.Key_Up: self.btn_backup,
-            Qt.Key.Key_Down: self.btn_export,
-            Qt.Key.Key_Return: self.restore_db
-        })
+        # All buttons as grid
+        button_grid = [
+            [self.btn_backup],           # Row 1
+            [self.btn_restore],           # Row 2
+            [self.btn_export, self.btn_import],  # Row 3
+            [self.btn_reset_transaksi],   # Row 4
+            [self.btn_vacuum],            # Row 5
+        ]
         
-        # Import/Export row (horizontal)
-        self.register_navigation(self.btn_export, {
-            Qt.Key.Key_Up: self.btn_restore,
-            Qt.Key.Key_Right: self.btn_import,
-            Qt.Key.Key_Down: self.btn_reset_transaksi,
-            Qt.Key.Key_Return: self.export_csv
-        })
+        self.register_navigation_grid(button_grid, circular=False)
         
-        self.register_navigation(self.btn_import, {
-            Qt.Key.Key_Up: self.btn_restore,
-            Qt.Key.Key_Left: self.btn_export,
-            Qt.Key.Key_Down: self.btn_reset_transaksi,
-            Qt.Key.Key_Return: self.import_csv
-        })
-        
-        # Maintenance buttons
-        self.register_navigation(self.btn_reset_transaksi, {
-            Qt.Key.Key_Up: self.btn_export,
-            Qt.Key.Key_Down: self.btn_vacuum,
-            Qt.Key.Key_Return: self.reset_transaksi
-        })
-        
-        self.register_navigation(self.btn_vacuum, {
-            Qt.Key.Key_Up: self.btn_reset_transaksi,
-            Qt.Key.Key_Return: self.vacuum_db
-        })
+        # Enter = Execute untuk semua buttons
+        for btn in [self.btn_backup, self.btn_restore, self.btn_export, 
+                   self.btn_import, self.btn_reset_transaksi, self.btn_vacuum]:
+            self.register_navigation(btn, {
+                Qt.Key.Key_Return: lambda b=btn: b.click()
+            })
     
+    # Database info
     def update_db_info(self):
-        """Update database info display"""
+        """Update DB info display"""
         if DB_PATH.exists():
             size_kb = os.path.getsize(DB_PATH) / 1024
             self.lbl_size.setText(f"Ukuran: {size_kb:.2f} KB")
         else:
             self.lbl_size.setText("Database Tidak Ditemukan")
     
+    # Operations
     def backup_db(self):
-        """Backup database ke folder data/backup"""
+        """Backup database"""
         folder_data = os.path.dirname(DB_PATH)
         folder_backup = os.path.join(folder_data, "backup")
         
@@ -190,13 +183,13 @@ class KelolaDBWindow(BaseWindow):
         
         try:
             shutil.copy(DB_PATH, dest_path)
-            self.show_success("Sukses", f"Backup tersimpan rapi di:\n{dest_path}")
+            self.show_success("Sukses", f"Backup tersimpan:\n{dest_path}")
             self.update_db_info()
         except Exception as e:
             self.show_error("Error", f"Gagal backup: {e}")
     
     def restore_db(self):
-        """Restore database from backup"""
+        """Restore from backup"""
         folder_data = os.path.dirname(DB_PATH)
         folder_backup = os.path.join(folder_data, "backup")
         
@@ -212,7 +205,7 @@ class KelolaDBWindow(BaseWindow):
         
         if not self.confirm_action(
             "Restore Database",
-            "Yakin ingin restore? Data saat ini akan ditimpa."
+            "Yakin restore? Data saat ini akan ditimpa."
         ):
             return
         
@@ -220,7 +213,7 @@ class KelolaDBWindow(BaseWindow):
             shutil.copy(file_path, DB_PATH)
             self.show_success(
                 "Berhasil",
-                "Database berhasil dipulihkan. Aplikasi akan restart."
+                "Database dipulihkan. Aplikasi akan restart."
             )
             import sys
             sys.exit()
@@ -228,7 +221,7 @@ class KelolaDBWindow(BaseWindow):
             self.show_error("Error", f"Gagal restore: {e}")
     
     def export_csv(self):
-        """Export produk ke CSV"""
+        """Export products to CSV"""
         folder_data = os.path.dirname(DB_PATH)
         folder_export = os.path.join(folder_data, "export")
         
@@ -259,13 +252,13 @@ class KelolaDBWindow(BaseWindow):
                 writer.writerow(["id", "barcode", "nama", "harga", "stok"])
                 writer.writerows(rows)
             
-            self.show_success("Berhasil", f"Data berhasil diexport ke:\n{save_path}")
+            self.show_success("Berhasil", f"Data diexport ke:\n{save_path}")
             
         except Exception as e:
             self.show_error("Error", f"Gagal export: {str(e)}")
     
     def import_csv(self):
-        """Import produk dari CSV"""
+        """Import products from CSV"""
         folder_data = os.path.dirname(DB_PATH)
         folder_export = os.path.join(folder_data, "export")
         
@@ -286,7 +279,7 @@ class KelolaDBWindow(BaseWindow):
             self.show_error("Error", str(e))
     
     def reset_transaksi(self):
-        """Hapus semua riwayat transaksi"""
+        """Delete all transaction history"""
         if not self.confirm_action(
             "Hapus Riwayat",
             "Hapus SEMUA data transaksi? Produk & User aman."
