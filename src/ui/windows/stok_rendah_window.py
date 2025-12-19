@@ -1,3 +1,9 @@
+"""
+Stok Rendah Window - SmartNavigation
+=====================================
+Filter row (arrow left/right) → Table (arrow down) → Actions (arrow left/right)
+"""
+
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QLabel, 
     QSpinBox, QFrame, QInputDialog, QFileDialog
@@ -13,6 +19,7 @@ from src.database import create_connection, update_stok_produk
 
 
 class StokRendahWindow(BaseWindow):
+    """Low stock report dengan arrow navigation"""
     
     def __init__(self):
         super().__init__()
@@ -25,6 +32,7 @@ class StokRendahWindow(BaseWindow):
         self.setGeometry(100, 100, 1000, 600)
     
     def setup_ui(self):
+        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -32,6 +40,7 @@ class StokRendahWindow(BaseWindow):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
+        # Filter frame
         filter_frame = QFrame()
         filter_frame.setStyleSheet(
             "background-color: #181818; border-radius: 8px; border: 1px solid #333;"
@@ -57,6 +66,7 @@ class StokRendahWindow(BaseWindow):
         filter_layout.addWidget(self.btn_refresh)
         filter_layout.addStretch()
         
+        # Action buttons
         self.btn_restock = QPushButton("⚡ Restock (F2)")
         self.btn_restock.setStyleSheet(style.get_button_style('success'))
         self.btn_restock.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -78,6 +88,7 @@ class StokRendahWindow(BaseWindow):
         
         layout.addWidget(filter_frame)
         
+        # Table
         self.table = SmartTable(0, 4)
         self.table.setHorizontalHeaderLabels(["ID", "Barcode", "Nama Produk", "Sisa Stok"])
         self.table.setColumnHidden(0, True)
@@ -86,49 +97,73 @@ class StokRendahWindow(BaseWindow):
         layout.addWidget(self.table)
         
         layout.addWidget(QLabel(
-            "F2=Restock | ESC=Close",
+            "↑↓←→=Navigate | F2=Restock | ESC=Close",
             styleSheet="color: #777; font-size: 11px; font-style: italic;"
         ))
         
         self.spin_batas.setFocus()
     
     def setup_navigation(self):
+        """
+        Arrow navigation:
+        - Filter row: Left/Right untuk horizontal
+        - Down dari filter → Table
+        - Table: Up → Filter, Down tetap di table
+        - Action buttons: Left/Right horizontal
+        """
+        
+        # ===== FILTER ROW (Horizontal - Left/Right) =====
+        # SpinBox: Right → Refresh button, Down → Table, Enter → Refresh
         self.register_navigation(self.spin_batas, {
-            Qt.Key.Key_Return: self.muat_stok_rendah,
-            Qt.Key.Key_Right: self.btn_refresh
+            Qt.Key.Key_Right: self.btn_refresh,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table),
+            Qt.Key.Key_Return: self.muat_stok_rendah
         })
         
+        # Refresh button: Left → SpinBox, Right → Restock, Down → Table, Enter → Refresh
         self.register_navigation(self.btn_refresh, {
-            Qt.Key.Key_Return: self.muat_stok_rendah,
+            Qt.Key.Key_Left: self.spin_batas,
             Qt.Key.Key_Right: self.btn_restock,
-            Qt.Key.Key_Left: self.spin_batas
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table),
+            Qt.Key.Key_Return: self.muat_stok_rendah
         })
         
+        # ===== ACTION BUTTONS ROW (Horizontal - Left/Right) =====
+        # Restock button
         self.register_navigation(self.btn_restock, {
-            Qt.Key.Key_Return: self.aksi_restock,
+            Qt.Key.Key_Left: self.btn_refresh,
             Qt.Key.Key_Right: self.btn_csv,
-            Qt.Key.Key_Left: self.btn_refresh
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table),
+            Qt.Key.Key_Return: self.aksi_restock
         })
         
+        # CSV button
         self.register_navigation(self.btn_csv, {
-            Qt.Key.Key_Return: self.export_csv,
+            Qt.Key.Key_Left: self.btn_restock,
             Qt.Key.Key_Right: self.btn_pdf,
-            Qt.Key.Key_Left: self.btn_restock
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table),
+            Qt.Key.Key_Return: self.export_csv
         })
         
+        # PDF button
         self.register_navigation(self.btn_pdf, {
-            Qt.Key.Key_Return: self.export_pdf,
-            Qt.Key.Key_Left: self.btn_csv
+            Qt.Key.Key_Left: self.btn_csv,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table),
+            Qt.Key.Key_Return: self.export_pdf
         })
         
+        # ===== TABLE =====
+        # Up dari table row 0 → Kembali ke SpinBox
         self.register_table_callbacks(self.table, {
-            'edit': self.aksi_restock,
-            'focus_up': self.spin_batas
+            'edit': self.aksi_restock,  # F2 / Enter
+            'focus_up': self.spin_batas  # Up dari row 0
         })
         
+        # F2 global shortcut
         self.register_shortcut(Qt.Key.Key_F2, self.aksi_restock)
     
     def muat_stok_rendah(self):
+        """Load low stock products"""
         self.table.clear_table()
         batas = self.spin_batas.value()
         
@@ -161,6 +196,7 @@ class StokRendahWindow(BaseWindow):
             self.table.setItem(row, 3, item_stok)
     
     def aksi_restock(self):
+        """Quick restock selected product"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Produk", "Pilih produk yang ingin direstock.")
@@ -180,9 +216,10 @@ class StokRendahWindow(BaseWindow):
         if ok:
             update_stok_produk(id_produk, stok_lama + jumlah)
             self.muat_stok_rendah()
-            self.show_success("Sukses", f"Stok '{nama}' bertambah.")
+            self.show_success("Sukses", f"Stok '{nama}' bertambah {jumlah} pcs.")
     
     def export_csv(self):
+        """Export to CSV shopping list"""
         if self.table.rowCount() == 0:
             return
         
@@ -209,6 +246,7 @@ class StokRendahWindow(BaseWindow):
                 self.show_error("Error", str(e))
     
     def export_pdf(self):
+        """Export to PDF shopping list"""
         if self.table.rowCount() == 0:
             return
         
