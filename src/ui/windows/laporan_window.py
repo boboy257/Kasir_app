@@ -62,6 +62,7 @@ class LaporanWindow(BaseWindow):
         self.btn_filter.clicked.connect(self.muat_laporan)
         
         self.btn_reset = QPushButton("Reset")
+        self.btn_reset.setStyleSheet(style.get_button_style('default'))
         self.btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reset.clicked.connect(self.reset_filter)
         

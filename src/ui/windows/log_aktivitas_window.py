@@ -1,45 +1,34 @@
 """
-Log Aktivitas Window - MIGRATED TO KEYBOARD MIXIN
-==================================================
-✅ Clean keyboard navigation
-✅ Using SmartTable widget
-✅ Simplified eventFilter
-
-BEFORE: ~80 lines of eventFilter
-AFTER: ~15 lines of registration
+Log Aktivitas Window - SmartNavigation
+=======================================
+Audit trail dengan filter + table
 """
 
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QLabel, 
-    QComboBox, QHeaderView, QDateEdit, QLineEdit, QFrame, QFileDialog
+    QComboBox, QDateEdit, QLineEdit, QFrame, QFileDialog
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QEvent
 import csv
 
 from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
-from src.ui.widgets.smart_table import SmartTable  # ✅ Using SmartTable!
+from src.ui.widgets.smart_table import SmartTable
 from src.database import ambil_log_aktivitas, semua_user
 
 
 class LogAktivitasWindow(BaseWindow):
-    """
-    Window untuk audit trail / log aktivitas
-    
-    ✨ MIGRATED: Clean keyboard navigation
-    """
+    """Audit trail window"""
     
     def __init__(self):
         super().__init__()
         
         self.setup_ui()
-        self.setup_navigation()  # ✅ Clean!
+        self.setup_navigation()
         
-        # Window properties
         self.setWindowTitle("Audit Trail / Log Aktivitas")
         self.setGeometry(100, 100, 1100, 700)
         
-        # Load data
         self.muat_log()
     
     def setup_ui(self):
@@ -51,7 +40,7 @@ class LogAktivitasWindow(BaseWindow):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # ===== FILTER AREA =====
+        # Filter frame
         filter_frame = QFrame()
         filter_frame.setStyleSheet(
             "background-color: #181818; border-radius: 8px; border: 1px solid #333;"
@@ -110,17 +99,17 @@ class LogAktivitasWindow(BaseWindow):
         
         layout.addWidget(filter_frame)
         
-        # ===== TABLE (SmartTable!) =====
+        # Table
         self.table_log = SmartTable(0, 4)
         self.table_log.setHorizontalHeaderLabels(["Waktu", "User", "Aktivitas", "Detail"])
-        self.table_log.stretch_column(3)  # Detail column stretches
+        self.table_log.stretch_column(3)
         self.table_log.set_column_width(0, 150)
         self.table_log.set_column_width(1, 100)
         self.table_log.set_column_width(2, 150)
         
         layout.addWidget(self.table_log)
         
-        # ===== FOOTER =====
+        # Footer
         footer_layout = QHBoxLayout()
         
         lbl_legend = QLabel(
@@ -135,77 +124,90 @@ class LogAktivitasWindow(BaseWindow):
         
         footer_layout.addStretch()
         
-        lbl_nav = QLabel("Enter=Next | Ctrl+↑↓=Jump | ESC=Close")
+        lbl_nav = QLabel("Ctrl+←→ = Skip Date | ↑↓ = Table | Space = Open User | Enter = Filter | ESC = Close")
         lbl_nav.setStyleSheet("color: #777; font-size: 11px; font-style: italic;")
         footer_layout.addWidget(lbl_nav)
         
         layout.addLayout(footer_layout)
         
-        # Focus awal
         self.date_start.setFocus()
     
     def setup_navigation(self):
         """
-        ✨ CLEAN NAVIGATION SETUP
-        
-        BEFORE: ~80 lines of complex eventFilter
-        AFTER: ~15 lines of registration! 🎉
+        Filter row (horizontal Left/Right) → Table (vertical Up/Down)
         """
-        
-        # ===== FILTER NAVIGATION =====
-        # Date Start: Enter = Date End
+        # Filter row - horizontal navigation
         self.register_navigation(self.date_start, {
-            Qt.Key.Key_Return: self.date_end
+            # Qt.Key.Key_Right: self.date_end,
+            Qt.Key.Key_Return: self.date_end,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_log)
         })
         
-        # Date End: Enter = Combo User
         self.register_navigation(self.date_end, {
-            Qt.Key.Key_Return: self.combo_user
+            Qt.Key.Key_Left: self.date_start,
+            # Qt.Key.Key_Right: self.combo_user,
+            Qt.Key.Key_Return: self.combo_user,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_log)
         })
         
-        # Combo User: Enter = Search Input
         self.register_navigation(self.combo_user, {
-            Qt.Key.Key_Return: self.input_cari,
+            Qt.Key.Key_Left: self.date_end,
             Qt.Key.Key_Right: self.input_cari,
-            Qt.Key.Key_Left: self.date_end
+            Qt.Key.Key_Return: self.input_cari,
+            Qt.Key.Key_Space: lambda: self.combo_user.showPopup(),
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_log)
         })
         
-        # Search Input: Enter = Filter & focus button
         self.register_navigation(self.input_cari, {
-            Qt.Key.Key_Return: lambda: (self.muat_log(), self.btn_filter.setFocus()),
+            Qt.Key.Key_Left: self.combo_user,
             Qt.Key.Key_Right: self.btn_filter,
-            Qt.Key.Key_Left: self.combo_user
+            Qt.Key.Key_Return: lambda: (self.muat_log(), self.btn_filter.setFocus()),
+            Qt.Key.Key_Down: lambda: (self.combo_user.showPopup(), None)[1] or self.focus_table_first_row(self.table_log)
         })
         
-        # Btn Filter: Enter = Apply filter
         self.register_navigation(self.btn_filter, {
-            Qt.Key.Key_Return: self.muat_log,
+            Qt.Key.Key_Left: self.input_cari,
             Qt.Key.Key_Right: self.btn_export,
-            Qt.Key.Key_Left: self.input_cari
+            Qt.Key.Key_Return: self.muat_log,
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_log)
         })
         
-        # Btn Export: Enter = Export
         self.register_navigation(self.btn_export, {
+            Qt.Key.Key_Left: self.btn_filter,
+            Qt.Key.Key_Right: self.date_start,  # Circular
             Qt.Key.Key_Return: self.export_csv,
-            Qt.Key.Key_Left: self.btn_filter
+            Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table_log)
         })
         
-        # ===== TABLE NAVIGATION =====
-        # ✅ Ctrl+Up/Down, Up/Down at edges ALL handled by mixin!
+        # Table: Up dari row 0 → input_cari
         self.register_table_callbacks(self.table_log, {
-            'focus_up': self.input_cari,  # Ctrl+Up or Up at row 0
-            'focus_down': self.btn_filter  # Ctrl+Down or Down at last row
+            'focus_up': self.input_cari,
+            'focus_down': self.btn_filter
         })
-        
-        # ===== GLOBAL SHORTCUTS =====
-        # Ctrl+F = Focus search (already handled by KeyboardMixin!)
-        # ESC = Close (already handled by KeyboardMixin!)
     
-    # ========== NO MORE COMPLEX EVENTFILTER! ==========
-    # ✅ All navigation handled by KeyboardMixin!
+    # def eventFilter(self, obj, event):
+    #     """Override untuk handle QDateEdit navigation"""
+    #     if event.type() == QEvent.Type.KeyPress:
+    #         key = event.key()
+            
+    #         # QDateEdit: Ctrl+Right untuk skip ke field berikutnya
+    #         if obj == self.date_start:
+    #             if key == Qt.Key.Key_Right and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+    #                 self.date_end.setFocus()
+    #                 return True
+            
+    #         if obj == self.date_end:
+    #             if key == Qt.Key.Key_Right and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+    #                 self.combo_user.setFocus()
+    #                 return True
+    #             if key == Qt.Key.Key_Left and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+    #                 self.date_start.setFocus()
+    #                 return True
+        
+    #     return super().eventFilter(obj, event)
     
     def isi_combo_user(self):
-        """Populate user combo box"""
+        """Populate user combo"""
         self.combo_user.clear()
         self.combo_user.addItem("Semua Pengguna", None)
         
@@ -214,7 +216,7 @@ class LogAktivitasWindow(BaseWindow):
             self.combo_user.addItem(username, username)
     
     def muat_log(self):
-        """Load log aktivitas dengan filter"""
+        """Load activity log"""
         self.table_log.clear_table()
         
         user_filter = self.combo_user.currentData()

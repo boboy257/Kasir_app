@@ -1,3 +1,9 @@
+"""
+Riwayat Hari Ini Window - SmartNavigation
+==========================================
+Today's transactions dengan action buttons + table
+"""
+
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QHBoxLayout, QLabel, 
     QPushButton, QFrame, QFileDialog
@@ -12,6 +18,7 @@ from src.database import create_connection
 
 
 class RiwayatHariIniWindow(BaseWindow):
+    """Today's transaction history"""
     
     def __init__(self):
         super().__init__()
@@ -24,6 +31,7 @@ class RiwayatHariIniWindow(BaseWindow):
         self.setGeometry(100, 100, 1000, 600)
     
     def setup_ui(self):
+        """Setup UI components"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -31,7 +39,7 @@ class RiwayatHariIniWindow(BaseWindow):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # Header
+        # Header frame
         header_frame = QFrame()
         header_frame.setStyleSheet(
             "background-color: #181818; border-radius: 8px; border: 1px solid #333;"
@@ -63,7 +71,7 @@ class RiwayatHariIniWindow(BaseWindow):
         
         layout.addWidget(self.table)
         
-        # Action buttons
+        # Action buttons (horizontal row)
         btn_layout = QHBoxLayout()
         
         style = StyleManager()
@@ -72,7 +80,7 @@ class RiwayatHariIniWindow(BaseWindow):
         self.btn_detail.setStyleSheet(style.get_button_style('default'))
         self.btn_detail.clicked.connect(self.lihat_detail)
         
-        self.btn_print = QPushButton("🖨️ Print Ulang")
+        self.btn_print = QPushButton("🖨️ Print Ulang (F9)")
         self.btn_print.setStyleSheet(style.get_button_style('default'))
         self.btn_print.clicked.connect(self.print_ulang)
         
@@ -92,45 +100,57 @@ class RiwayatHariIniWindow(BaseWindow):
         
         layout.addLayout(btn_layout)
         
-        lbl_nav = QLabel("Enter=Detail | Ctrl+↑↓=Jump | ESC=Close")
+        lbl_nav = QLabel("↑↓=Table | ←→=Buttons | Enter=Detail | F9=Print | ESC=Close")
         lbl_nav.setStyleSheet("color: #777; font-size: 11px; font-style: italic;")
         layout.addWidget(lbl_nav)
         
         self.table.setFocus()
     
     def setup_navigation(self):
-        # Table: Enter = detail
+        """
+        Navigation: Table first → Buttons row (horizontal)
+        Table Up/Down, Buttons Left/Right
+        """
+        # Table: Enter = detail, Down → buttons
         self.register_table_callbacks(self.table, {
             'edit': self.lihat_detail,
             'focus_down': self.btn_detail
         })
         
-        # Buttons navigation
+        # F9 global shortcut untuk print ulang
+        self.register_shortcut(Qt.Key.Key_F9, self.print_ulang)
+        
+        # Action buttons - horizontal navigation (Left/Right)
         self.register_navigation(self.btn_detail, {
-            Qt.Key.Key_Return: self.lihat_detail,
+            Qt.Key.Key_Left: self.btn_refresh,  # Circular
             Qt.Key.Key_Right: self.btn_print,
-            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table)
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table),
+            Qt.Key.Key_Return: self.lihat_detail
         })
         
         self.register_navigation(self.btn_print, {
-            Qt.Key.Key_Return: self.print_ulang,
             Qt.Key.Key_Left: self.btn_detail,
-            Qt.Key.Key_Right: self.btn_export
+            Qt.Key.Key_Right: self.btn_export,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table),
+            Qt.Key.Key_Return: self.print_ulang
         })
         
         self.register_navigation(self.btn_export, {
-            Qt.Key.Key_Return: self.export_pdf,
             Qt.Key.Key_Left: self.btn_print,
-            Qt.Key.Key_Right: self.btn_refresh
+            Qt.Key.Key_Right: self.btn_refresh,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table),
+            Qt.Key.Key_Return: self.export_pdf
         })
         
         self.register_navigation(self.btn_refresh, {
-            Qt.Key.Key_Return: self.muat_riwayat,
-            Qt.Key.Key_Left: self.btn_export
+            Qt.Key.Key_Left: self.btn_export,
+            Qt.Key.Key_Right: self.btn_detail,  # Circular
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table),
+            Qt.Key.Key_Return: self.muat_riwayat
         })
     
     def muat_riwayat(self):
-        """Load transaksi hari ini dari database"""
+        """Load today's transactions"""
         self.table.clear_table()
         
         conn = create_connection()
@@ -170,14 +190,13 @@ class RiwayatHariIniWindow(BaseWindow):
             
             total_omset += total
         
-        # Update summary
         self.lbl_summary.setText(
             f"Total: {len(transaksi_list)} transaksi | "
             f"Omset: Rp {int(total_omset):,}"
         )
     
     def lihat_detail(self):
-        """Tampilkan detail transaksi"""
+        """Show transaction detail"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Transaksi", "Pilih transaksi yang ingin dilihat")
@@ -198,7 +217,6 @@ class RiwayatHariIniWindow(BaseWindow):
         items = cursor.fetchall()
         conn.close()
         
-        # Format pesan
         pesan = f"Detail Transaksi: {no_faktur}\n\n"
         pesan += "=" * 50 + "\n"
         
@@ -214,7 +232,7 @@ class RiwayatHariIniWindow(BaseWindow):
         self.show_success("Detail Transaksi", pesan)
     
     def print_ulang(self):
-        """Print ulang struk"""
+        """Reprint receipt"""
         row = self.table.currentRow()
         if row < 0:
             self.show_warning("Pilih Transaksi", "Pilih transaksi yang ingin di-print ulang")
@@ -238,7 +256,6 @@ class RiwayatHariIniWindow(BaseWindow):
         items = cursor.fetchall()
         conn.close()
         
-        # Generate struk
         try:
             from src.cetak_struk import cetak_struk_pdf
             from src.config import NAMA_TOKO, ALAMAT_TOKO
@@ -248,7 +265,6 @@ class RiwayatHariIniWindow(BaseWindow):
                 no_faktur, 0, 0, "admin"
             )
             
-            # Buka PDF
             import os, platform
             if platform.system() == 'Windows':
                 os.startfile(filepath)
@@ -259,7 +275,7 @@ class RiwayatHariIniWindow(BaseWindow):
             self.show_error("Error", f"Gagal print ulang:\n{e}")
     
     def export_pdf(self):
-        """Export semua transaksi hari ini ke PDF"""
+        """Export all today's transactions to PDF"""
         if self.table.rowCount() == 0:
             self.show_warning("Tidak Ada Data", "Tidak ada transaksi hari ini")
             return
@@ -292,7 +308,6 @@ class RiwayatHariIniWindow(BaseWindow):
             story.append(Paragraph(f"Tanggal: {tanggal_lengkap}", styles['Normal']))
             story.append(Spacer(1, 20))
             
-            # Table data
             data = [["No", "No. Faktur", "Jam", "Total"]]
             
             total_omset = 0
