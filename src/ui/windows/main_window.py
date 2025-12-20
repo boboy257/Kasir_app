@@ -53,6 +53,9 @@ class MainWindow(BaseWindow):
         
         # Lazy load dashboard
         QTimer.singleShot(100, self.lazy_load_dashboard)
+        
+        # Setup help overlay
+        self.setup_help_overlay(self.get_main_shortcuts())
     
     def setup_ui(self):
         """Setup UI components"""
@@ -484,3 +487,30 @@ class MainWindow(BaseWindow):
                 self.close()
             return True
         return False
+    
+    # ========== KEYBOARD SHORTCUTS DEFINITION ==========   
+    def get_main_shortcuts(self) -> dict:
+        """
+        Keyboard shortcuts untuk main window
+        
+        Returns:
+            dict: Shortcuts configuration
+        """
+        return {
+            "Navigasi Menu": [
+                ("↑↓", "Navigate menu grid (vertikal)"),
+                ("←→", "Navigate menu grid (horizontal)"),
+                ("Enter", "Buka menu terpilih"),
+            ],
+            "Header Actions": [
+                ("Tab", "Pindah antar header buttons"),
+                ("Enter", "Execute button"),
+            ],
+            "Menu Utama": [
+                ("1-8", "Quick access ke menu (1=Kasir, 2=Produk, dst)"),
+            ],
+            "Global": [
+                ("F5", "Refresh dashboard"),
+                ("ESC", "Keluar aplikasi (dengan konfirmasi)"),
+            ],
+        }
