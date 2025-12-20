@@ -6,6 +6,7 @@ Parent class dengan SmartNavigationMixin integrated
 
 from PyQt6.QtWidgets import QMainWindow, QMessageBox
 from src.ui.base.smart_navigation_mixin import SmartNavigationMixin
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 
 class BaseWindow(QMainWindow, SmartNavigationMixin):
@@ -89,3 +90,14 @@ class BaseWindow(QMainWindow, SmartNavigationMixin):
         """
         self.close()
         return True
+    
+    def setup_help_overlay(self, shortcuts: dict):
+        """Setup F1 help overlay"""
+        from src.ui.widgets.help_overlay import HelpOverlay
+        
+        self.help_overlay = HelpOverlay(self)
+        self.help_overlay.set_shortcuts(shortcuts)
+        
+        # ✅ Register F1 dengan QShortcut (bukan register_shortcut)
+        self.help_shortcut = QShortcut(QKeySequence("F1"), self)
+        self.help_shortcut.activated.connect(self.help_overlay.toggle)

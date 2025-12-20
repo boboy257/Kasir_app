@@ -52,6 +52,7 @@ class KasirWindow(BaseWindow):
         self.setup_ui()
         self.setup_navigation()
         self.setup_global_shortcuts()
+        self.setup_help_overlay(self.get_kasir_shortcuts())
         
         self.setWindowTitle("Aplikasi Kasir - Mode Penjualan")
         self.setGeometry(100, 100, 1100, 600)
@@ -705,3 +706,39 @@ class KasirWindow(BaseWindow):
             self.show_error("Error", f"Gagal simpan: {str(e)}")
         finally:
             conn.close()
+    
+    # ========== KEYBOARD SHORTCUTS DEFINITION ==========      
+    def get_kasir_shortcuts(self) -> dict:
+        """
+        Define keyboard shortcuts untuk kasir window
+        
+        Returns:
+            dict: Shortcuts configuration
+        """
+        return {
+            "Scan Barang": [
+                ("0-9", "Set quantity (tekan angka 1-9)"),
+                ("Scan/Enter", "Tambah barang ke keranjang"),
+                ("↓", "Pindah ke tabel belanja"),
+            ],
+            "Navigasi Tabel": [
+                ("↑↓", "Navigate items di keranjang"),
+                ("Ctrl+Up", "Kembali ke barcode input"),
+                ("←→", "Navigate button row"),
+            ],
+            "Edit Item": [
+                ("F2 / Enter", "Edit quantity item terpilih"),
+                ("F8", "Edit diskon item terpilih"),
+                ("Delete", "Hapus item dari keranjang"),
+            ],
+            "Actions": [
+                ("F4", "Cari barang manual (tanpa barcode)"),
+                ("F5", "Reset/Kosongkan keranjang"),
+                ("F6", "Pending / Recall transaksi"),
+                ("F12", "Proses pembayaran"),
+            ],
+            "Shortcuts Cepat": [
+                ("Ctrl+F", "Focus ke pencarian (jika ada)"),
+                ("ESC", "Keluar kasir (dengan konfirmasi)"),
+            ],
+        }
