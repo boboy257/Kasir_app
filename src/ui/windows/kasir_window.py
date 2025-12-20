@@ -15,7 +15,7 @@ from datetime import datetime
 from src.ui.base.base_window import BaseWindow
 from src.ui.base.style_manager import StyleManager
 from src.ui.widgets.smart_table import SmartTable
-from src.ui.dialogs.payment_dialog import PaymentDialog
+from src.ui.dialogs.multi_payment_dialog import MultiPaymentDialog
 from src.ui.dialogs.preview_dialog import PreviewDialog
 from src.ui.dialogs.search_dialog import SearchDialog
 from src.ui.dialogs.pending_dialog import PendingDialog
@@ -510,15 +510,21 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def tampilkan_dialog_bayar(self):
-        """Payment dialog"""
+        """Payment dialog - MULTI PAYMENT VERSION"""
         if not self.keranjang_belanja:
             self.show_warning("Kosong", "Keranjang kosong.")
             self.barcode_input.setFocus()
             return
         
-        dialog = PaymentDialog(self.total_transaksi, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.pembayaran_sukses:
-            self.simpan_transaksi(dialog.uang_diterima, dialog.kembalian)
+        # Multi-payment dialog
+        dialog = MultiPaymentDialog(self.total_transaksi, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.payments:
+            # Get payment details
+            payments = dialog.payments  # {'cash': 50000, 'debit': 30000, ...}
+            kembalian = dialog.kembalian
+            total_dibayar = sum(payments.values())
+            
+            self.simpan_transaksi(payments, total_dibayar, kembalian)
         
         self.barcode_input.setFocus()
     
@@ -600,8 +606,15 @@ class KasirWindow(BaseWindow):
     
     # ========== SAVE TRANSACTION ==========
     
-    def simpan_transaksi(self, uang_diterima, kembalian):
-        """Save transaction to database"""
+    def simpan_transaksi(self, payments_dict, total_dibayar, kembalian):
+        """
+        Save transaction dengan multi-payment
+        
+        Args:
+            payments_dict: {'cash': 50000, 'debit': 30000, ...}
+            total_dibayar: Total yang dibayarkan
+            kembalian: Kembalian
+        """
         conn = create_connection()
         cursor = conn.cursor()
         
@@ -616,7 +629,7 @@ class KasirWindow(BaseWindow):
             )
             transaksi_id = cursor.lastrowid
             
-            # Insert detail & update stok
+            # Insert detail items
             for item in self.keranjang_belanja:
                 nilai_diskon = item.get('diskon', 0)
                 cursor.execute("""
@@ -624,7 +637,12 @@ class KasirWindow(BaseWindow):
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (transaksi_id, item['nama'], item['qty'], item['harga'], nilai_diskon, item['subtotal']))
                 
+                # Update stok
                 cursor.execute("UPDATE produk SET stok = stok - ? WHERE id = ?", (item['qty'], item['id']))
+            
+            # ✅ NEW: Insert payment methods
+            from src.database import simpan_payment_methods
+            simpan_payment_methods(transaksi_id, payments_dict, cursor, conn)
             
             conn.commit()
             
@@ -635,7 +653,7 @@ class KasirWindow(BaseWindow):
             
             # Prepare struk data
             data_struk = [(item['nama'], int(item['harga']), item['qty'], int(item['subtotal'])) 
-                          for item in self.keranjang_belanja]
+                        for item in self.keranjang_belanja]
             
             # Generate struk PDF
             filepath = None
@@ -643,16 +661,16 @@ class KasirWindow(BaseWindow):
                 filepath = cetak_struk_pdf(
                     NAMA_TOKO, ALAMAT_TOKO, data_struk, 
                     int(self.total_transaksi), no_faktur,
-                    uang_diterima, kembalian, username
+                    total_dibayar, kembalian, username
                 )
             except Exception as e:
                 print(f"Error cetak struk: {e}")
             
-            # Preview dialog
+            # ✅ NEW: Preview dengan payment breakdown
             tanggal_str = datetime.now().strftime('%d/%m/%Y %H:%M')
             preview_dialog = PreviewDialog(
                 no_faktur, tanggal_str, username, data_struk,
-                self.total_transaksi, uang_diterima, kembalian, self
+                self.total_transaksi, total_dibayar, kembalian, self
             )
             
             if preview_dialog.exec() == QDialog.DialogCode.Accepted and preview_dialog.user_print:
@@ -664,9 +682,15 @@ class KasirWindow(BaseWindow):
                     except Exception as e:
                         print(f"Gagal buka PDF: {e}")
                 
+                # Format payment summary
+                payment_summary = "\n".join([
+                    f"{method.upper()}: Rp {int(amount):,}" 
+                    for method, amount in payments_dict.items()
+                ])
+                
                 self.show_success("Berhasil", 
                     f"✅ Transaksi berhasil!\n\n"
-                    f"Bayar: Rp {int(uang_diterima):,}\n"
+                    f"Pembayaran:\n{payment_summary}\n\n"
                     f"Kembali: Rp {int(kembalian):,}")
             else:
                 self.show_success("Transaksi Berhasil", 

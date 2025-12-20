@@ -807,3 +807,86 @@ def ambil_laporan_filter(start_date, end_date):
     hasil = cursor.fetchall()
     conn.close()
     return hasil
+
+def simpan_payment_methods(transaksi_id, payments_dict, cursor=None, conn=None):
+    """
+    Simpan detail payment methods
+    
+    Args:
+        transaksi_id: ID transaksi
+        payments_dict: {'cash': 50000, 'debit': 30000, ...}
+        cursor: Reuse cursor dari transaksi parent
+        conn: Reuse connection dari transaksi parent
+    """
+    # Reuse connection dari parent (PENTING!)
+    close_after = False
+    if conn is None:
+        conn = create_connection()
+        cursor = conn.cursor()
+        close_after = True
+    
+    try:
+        for method, amount in payments_dict.items():
+            cursor.execute(
+                "INSERT INTO payment_methods (transaksi_id, method, amount) VALUES (?, ?, ?)",
+                (transaksi_id, method, amount)
+            )
+        
+        if close_after:
+            conn.commit()
+        
+    except Exception as e:
+        if close_after:
+            conn.rollback()
+        print(f"Error simpan payment methods: {e}")
+        raise
+        
+    finally:
+        if close_after:
+            conn.close()
+
+
+def ambil_payment_methods(transaksi_id):
+    """
+    Ambil detail payment methods untuk transaksi tertentu
+    
+    Returns:
+        list: [(method, amount), ...]
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT method, amount FROM payment_methods WHERE transaksi_id = ? ORDER BY id",
+        (transaksi_id,)
+    )
+    
+    hasil = cursor.fetchall()
+    conn.close()
+    
+    return hasil
+
+
+def laporan_payment_methods(start_date, end_date):
+    """
+    Laporan per payment method
+    
+    Returns:
+        dict: {'cash': 500000, 'debit': 300000, ...}
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT pm.method, SUM(pm.amount) as total
+        FROM payment_methods pm
+        JOIN transaksi t ON pm.transaksi_id = t.id
+        WHERE DATE(t.tanggal) BETWEEN ? AND ?
+        GROUP BY pm.method
+        ORDER BY total DESC
+    """, (start_date, end_date))
+    
+    hasil = cursor.fetchall()
+    conn.close()
+    
+    return dict(hasil)
