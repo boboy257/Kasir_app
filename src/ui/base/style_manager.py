@@ -7,6 +7,18 @@ Centralized style management untuk konsistensi UI
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 
+# ========== BUTTON SIZE CONSTANTS ==========
+
+class ButtonSize:
+    """Standard button sizes"""
+    SMALL = 35
+    MEDIUM = 40
+    LARGE = 45
+    XLARGE = 60
+    MIN_WIDTH_NARROW = 80
+    MIN_WIDTH_NORMAL = 120
+    MIN_WIDTH_WIDE = 150
+    MIN_WIDTH_FULL = 200
 class StyleManager:
     """
     Singleton class untuk manage styles
@@ -63,38 +75,64 @@ class StyleManager:
     @staticmethod
     def get_color(name: str) -> str:
         """
-        Get color by name
+        Get color by name - UPDATED PALETTE
         
-        Args:
-            name: Color name (primary, success, warning, danger, etc)
-            
-        Returns:
-            Hex color code
+        Design principles:
+        - Primary: Blue (professional, trust)
+        - Success: Green (positive action)
+        - Warning: Orange (caution)
+        - Danger: Red (destructive action)
+        - Neutral: Grays (backgrounds, borders)
         """
         colors = {
-            # Brand colors
-            'primary': '#2196F3',
-            'secondary': '#00E5FF',
+            # ========== PRIMARY COLORS ==========
+            'primary': '#2196F3',        # Blue - Main brand color
+            'primary-light': '#64B5F6',  # Light blue - Hover
+            'primary-dark': '#1976D2',   # Dark blue - Active
             
-            # Status colors
-            'success': '#4CAF50',
-            'warning': '#FF9800',
-            'danger': '#F44336',
-            'info': '#00BCD4',
+            # ========== SEMANTIC COLORS ==========
+            'success': '#4CAF50',        # Green - Success, positive
+            'success-light': '#66BB6A',  # Light green - Hover
+            'success-dark': '#388E3C',   # Dark green - Active
             
-            # Background colors
-            'background': '#121212',
-            'surface': '#1E1E1E',
-            'elevated': '#252525',
+            'warning': '#FF9800',        # Orange - Warning, attention
+            'warning-light': '#FFB74D',  # Light orange - Hover
+            'warning-dark': '#F57C00',   # Dark orange - Active
             
-            # Text colors
-            'text': '#e0e0e0',
-            'text-secondary': '#aaaaaa',
-            'text-disabled': '#666666',
+            'danger': '#F44336',         # Red - Error, delete
+            'danger-light': '#EF5350',   # Light red - Hover
+            'danger-dark': '#D32F2F',    # Dark red - Active
             
-            # Border colors
-            'border': '#333333',
-            'border-focus': '#2196F3',
+            'info': '#00BCD4',           # Cyan - Info, neutral action
+            'info-light': '#4DD0E1',     # Light cyan - Hover
+            'info-dark': '#0097A7',      # Dark cyan - Active
+            
+            # ========== BACKGROUND COLORS ==========
+            'bg-app': '#0D0D0D',         # App background (darkest)
+            'bg-window': '#121212',      # Window background
+            'bg-surface': '#1E1E1E',     # Surface (cards, panels)
+            'bg-elevated': '#252525',    # Elevated surface (dialogs)
+            'bg-input': '#1E1E1E',       # Input fields
+            'bg-hover': '#2D2D2D',       # Hover state
+            'bg-active': '#333333',      # Active/pressed state
+            
+            # ========== TEXT COLORS ==========
+            'text-primary': '#FFFFFF',   # Primary text (white)
+            'text-secondary': '#B0B0B0', # Secondary text (gray)
+            'text-disabled': '#666666',  # Disabled text
+            'text-placeholder': '#808080', # Placeholder text
+            
+            # ========== BORDER COLORS ==========
+            'border': '#333333',         # Default border
+            'border-light': '#404040',   # Light border
+            'border-focus': '#2196F3',   # Focus border (blue)
+            'border-error': '#F44336',   # Error border (red)
+            
+            # ========== ACCENT COLORS ==========
+            'accent-purple': '#9C27B0',  # Purple - Pending
+            'accent-cyan': '#00E5FF',    # Bright cyan - Highlight
+            'accent-teal': '#009688',    # Teal - Special actions
+            'accent-amber': '#FFC107',   # Amber - Alerts
         }
         return colors.get(name, '#FFFFFF')
     
@@ -103,93 +141,245 @@ class StyleManager:
     @staticmethod
     def get_button_style(variant: str = 'default') -> str:
         """
-        Get button style by variant
+        Get button style - UPDATED dengan color palette
         
-        Args:
-            variant: Button variant (default, primary, success, warning, danger)
-            
-        Returns:
-            CSS stylesheet string
+        Variants:
+        - default: Neutral gray button
+        - primary: Blue - Main actions
+        - success: Green - Positive actions (save, confirm)
+        - warning: Orange - Caution actions (edit, pending)
+        - danger: Red - Destructive actions (delete)
+        - info: Cyan - Info actions
         """
+        
+        # Get colors
+        from src.ui.base.style_manager import StyleManager
+        c = StyleManager.get_color
+        
         styles = {
-            'default': """
-                QPushButton { 
-                    background-color: #1E1E1E; 
-                    border: 2px solid #333; 
+            'default': f"""
+                QPushButton {{ 
+                    background-color: {c('bg-surface')}; 
+                    color: {c('text-primary')}; 
+                    border: 2px solid {c('border')}; 
                     padding: 10px 20px; 
-                    border-radius: 4px; 
+                    border-radius: 5px; 
                     font-weight: bold;
-                    color: #e0e0e0;
-                }
-                QPushButton:hover { background-color: #333; }
-                QPushButton:focus { 
-                    border: 2px solid #ffffff; 
-                    background-color: #424242; 
-                }
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{ 
+                    background-color: {c('bg-hover')}; 
+                    border-color: {c('border-light')};
+                }}
+                QPushButton:pressed {{ 
+                    background-color: {c('bg-active')}; 
+                }}
+                QPushButton:focus {{ 
+                    border: 2px solid {c('border-focus')}; 
+                    background-color: {c('bg-elevated')}; 
+                }}
+                QPushButton:disabled {{
+                    background-color: {c('bg-surface')};
+                    color: {c('text-disabled')};
+                    border-color: {c('border')};
+                }}
             """,
             
-            'primary': """
-                QPushButton { 
-                    background-color: #2196F3; 
-                    color: white; 
-                    border: 2px solid #2196F3; 
+            'primary': f"""
+                QPushButton {{ 
+                    background-color: {c('primary')}; 
+                    color: {c('text-primary')}; 
+                    border: 2px solid {c('primary')}; 
                     padding: 10px 20px; 
-                    border-radius: 4px; 
+                    border-radius: 5px; 
                     font-weight: bold;
-                }
-                QPushButton:hover { background-color: #1976D2; }
-                QPushButton:focus { 
-                    border: 2px solid #ffffff; 
-                    background-color: #1976D2; 
-                }
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{ 
+                    background-color: {c('primary-light')}; 
+                    border-color: {c('primary-light')};
+                }}
+                QPushButton:pressed {{ 
+                    background-color: {c('primary-dark')}; 
+                }}
+                QPushButton:focus {{ 
+                    border: 2px solid {c('text-primary')}; 
+                }}
             """,
             
-            'success': """
-                QPushButton { 
-                    background-color: #4CAF50; 
-                    color: white; 
-                    border: 2px solid #4CAF50; 
+            'success': f"""
+                QPushButton {{ 
+                    background-color: {c('success')}; 
+                    color: {c('text-primary')}; 
+                    border: 2px solid {c('success')}; 
                     padding: 10px 20px; 
-                    border-radius: 4px; 
+                    border-radius: 5px; 
                     font-weight: bold;
-                }
-                QPushButton:hover { background-color: #45a049; }
-                QPushButton:focus { 
-                    border: 2px solid #ffffff; 
-                    background-color: #43A047; 
-                }
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{ 
+                    background-color: {c('success-light')}; 
+                }}
+                QPushButton:pressed {{ 
+                    background-color: {c('success-dark')}; 
+                }}
+                QPushButton:focus {{ 
+                    border: 2px solid {c('text-primary')}; 
+                }}
             """,
             
-            'warning': """
-                QPushButton { 
-                    background-color: #FF9800; 
-                    color: white; 
-                    border: 2px solid #FF9800; 
+            'warning': f"""
+                QPushButton {{ 
+                    background-color: {c('warning')}; 
+                    color: {c('text-primary')}; 
+                    border: 2px solid {c('warning')}; 
                     padding: 10px 20px; 
-                    border-radius: 4px; 
+                    border-radius: 5px; 
                     font-weight: bold;
-                }
-                QPushButton:hover { background-color: #F57C00; }
-                QPushButton:focus { 
-                    border: 2px solid #ffffff; 
-                    background-color: #F57C00; 
-                }
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{ 
+                    background-color: {c('warning-light')}; 
+                }}
+                QPushButton:pressed {{ 
+                    background-color: {c('warning-dark')}; 
+                }}
+                QPushButton:focus {{ 
+                    border: 2px solid {c('text-primary')}; 
+                }}
             """,
             
-            'danger': """
-                QPushButton { 
-                    background-color: #F44336; 
-                    color: white; 
-                    border: 2px solid #F44336; 
+            'danger': f"""
+                QPushButton {{ 
+                    background-color: {c('danger')}; 
+                    color: {c('text-primary')}; 
+                    border: 2px solid {c('danger')}; 
                     padding: 10px 20px; 
-                    border-radius: 4px; 
+                    border-radius: 5px; 
                     font-weight: bold;
-                }
-                QPushButton:hover { background-color: #d32f2f; }
-                QPushButton:focus { 
-                    border: 2px solid #ffffff; 
-                    background-color: #c62828; 
-                }
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{ 
+                    background-color: {c('danger-light')}; 
+                }}
+                QPushButton:pressed {{ 
+                    background-color: {c('danger-dark')}; 
+                }}
+                QPushButton:focus {{ 
+                    border: 2px solid {c('text-primary')}; 
+                }}
+            """,
+            
+            'info': f"""
+                QPushButton {{ 
+                    background-color: {c('info')}; 
+                    color: {c('text-primary')}; 
+                    border: 2px solid {c('info')}; 
+                    padding: 10px 20px; 
+                    border-radius: 5px; 
+                    font-weight: bold;
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{ 
+                    background-color: {c('info-light')}; 
+                }}
+                QPushButton:pressed {{ 
+                    background-color: {c('info-dark')}; 
+                }}
+                QPushButton:focus {{ 
+                    border: 2px solid {c('text-primary')}; 
+                }}
             """,
         }
+        
         return styles.get(variant, styles['default'])
+    
+    
+
+
+
+    # ========== ADD TO StyleManager CLASS ==========
+
+    @staticmethod
+    def apply_button_size(button, size='medium', width='auto'):
+        """
+        Apply standard size to button
+        
+        Args:
+            button: QPushButton instance
+            size: 'small' | 'medium' | 'large' | 'xlarge'
+            width: 'auto' | 'narrow' | 'normal' | 'wide' | 'full' | int
+        
+        Usage:
+            StyleManager.apply_button_size(btn, 'large', 'wide')
+        """
+        from src.ui.base.style_manager import ButtonSize
+        
+        # Set height
+        heights = {
+            'small': ButtonSize.SMALL,
+            'medium': ButtonSize.MEDIUM,
+            'large': ButtonSize.LARGE,
+            'xlarge': ButtonSize.XLARGE,
+        }
+        height = heights.get(size, ButtonSize.MEDIUM)
+        
+        # Set width
+        if width == 'auto':
+            # Auto width based on text
+            button.adjustSize()
+            current_width = button.width()
+            button.setMinimumWidth(max(current_width + 20, ButtonSize.MIN_WIDTH_NARROW))
+        elif width == 'narrow':
+            button.setFixedWidth(ButtonSize.MIN_WIDTH_NARROW)
+        elif width == 'normal':
+            button.setFixedWidth(ButtonSize.MIN_WIDTH_NORMAL)
+        elif width == 'wide':
+            button.setFixedWidth(ButtonSize.MIN_WIDTH_WIDE)
+        elif width == 'full':
+            button.setFixedWidth(ButtonSize.MIN_WIDTH_FULL)
+        elif isinstance(width, int):
+            button.setFixedWidth(width)
+        
+        button.setFixedHeight(height)
+
+
+    @staticmethod
+    def get_button_style_with_size(variant='default', size='medium'):
+        """
+        Get button style dengan size included
+        
+        Usage:
+            btn.setStyleSheet(StyleManager.get_button_style_with_size('success', 'large'))
+        """
+        from src.ui.base.style_manager import StyleManager, ButtonSize
+        
+        base_style = StyleManager.get_button_style(variant)
+        
+        # Add size-specific padding
+        paddings = {
+            'small': '6px 12px',
+            'medium': '10px 20px',
+            'large': '12px 24px',
+            'xlarge': '15px 30px',
+        }
+        padding = paddings.get(size, '10px 20px')
+        
+        # Add min-height
+        heights = {
+            'small': ButtonSize.SMALL,
+            'medium': ButtonSize.MEDIUM,
+            'large': ButtonSize.LARGE,
+            'xlarge': ButtonSize.XLARGE,
+        }
+        min_height = heights.get(size, ButtonSize.MEDIUM)
+        
+        # Inject padding & min-height into style
+        size_style = f"""
+            QPushButton {{
+                padding: {padding};
+                min-height: {min_height}px;
+            }}
+        """
+        
+        return base_style + size_style
