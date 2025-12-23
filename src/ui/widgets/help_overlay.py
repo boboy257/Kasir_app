@@ -6,7 +6,7 @@ F1 keyboard shortcuts help overlay - reusable for all windows
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve
-
+from src.ui.base.design_tokens import CyberpunkColors
 
 class HelpOverlay(QWidget):
     """
@@ -45,10 +45,10 @@ class HelpOverlay(QWidget):
                         self.parent().height() if self.parent() else 600)
         
         # Semi-transparent background
-        self.setStyleSheet("""
-            QWidget#HelpOverlay {
-                background-color: rgba(0, 0, 0, 180);
-            }
+        self.setStyleSheet(f"""
+            QWidget#HelpOverlay {{
+                background-color: rgba(10, 10, 15, 180);
+            }}
         """)
         self.setObjectName("HelpOverlay")
         
@@ -59,16 +59,16 @@ class HelpOverlay(QWidget):
         # Content frame
         self.content_frame = QFrame()
         self.content_frame.setMaximumWidth(700)
-        self.content_frame.setStyleSheet("""
-            QFrame {
-                background-color: #1E1E1E;
-                border: 2px solid #2196F3;
+        self.content_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {CyberpunkColors.BG_SURFACE};
+                border: 2px solid {CyberpunkColors.NEON_CYAN};
                 border-radius: 15px;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 background: transparent;
                 border: none;
-            }
+            }}
         """)
         
         content_layout = QVBoxLayout(self.content_frame)
@@ -77,10 +77,10 @@ class HelpOverlay(QWidget):
         
         # Header
         lbl_title = QLabel("⌨️ KEYBOARD SHORTCUTS")
-        lbl_title.setStyleSheet("""
+        lbl_title.setStyleSheet(f"""
             font-size: 24px;
             font-weight: bold;
-            color: #2196F3;
+            color: {CyberpunkColors.NEON_CYAN};
             padding: 10px;
         """)
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)

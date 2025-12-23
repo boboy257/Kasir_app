@@ -14,7 +14,7 @@ Features:
 
 from PyQt6.QtWidgets import QTableWidget, QAbstractItemView, QHeaderView
 from PyQt6.QtCore import Qt
-
+from src.ui.base.design_tokens import CyberpunkColors
 
 class SmartTable(QTableWidget):
     """
@@ -65,68 +65,65 @@ class SmartTable(QTableWidget):
         # Header slightly taller
         self.horizontalHeader().setFixedHeight(35)
         
-        # ========== STYLING ==========
-        self.setStyleSheet("""
-            QTableWidget {
-                background-color: #1E1E1E;
-                alternate-background-color: #252525;
-                gridline-color: #333;
-                border: 1px solid #333;
-                border-radius: 5px;
-                color: #e0e0e0;
-                selection-background-color: #2196F3;
-                selection-color: white;
-            }
+        # ========== STYLING (CYBERPUNK) ==========
+        self.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {CyberpunkColors.BG_SURFACE};
+                alternate-background-color: #151821;
+                gridline-color: {CyberpunkColors.BORDER_DEFAULT};
+                border: 1px solid {CyberpunkColors.BORDER_DEFAULT};
+                border-radius: 6px;
+                color: {CyberpunkColors.TEXT_PRIMARY};
+                selection-background-color: {CyberpunkColors.NEON_CYAN};
+                selection-color: {CyberpunkColors.BG_VOID};
+            }}
             
-            QTableWidget:focus {
-                border: 2px solid #2196F3;
-            }
+            QTableWidget:focus {{
+                border: 2px solid {CyberpunkColors.NEON_CYAN};
+            }}
             
-            QTableWidget::item {
-                padding: 5px;
-            }
+            QTableWidget::item:selected {{
+                background-color: {CyberpunkColors.NEON_CYAN};
+                color: {CyberpunkColors.BG_VOID};
+            }}
             
-            QTableWidget::item:selected {
-                background-color: #2196F3;
-                color: white;
-            }
+            QTableWidget::item:hover {{
+                background-color: {CyberpunkColors.BG_HOVER};
+            }}
             
-            QTableWidget::item:hover {
-                background-color: #333;
-            }
-            
-            QHeaderView::section {
-                background-color: #252525;
-                color: white;
+            QHeaderView::section {{
+                background-color: {CyberpunkColors.BG_ELEVATED};
+                color: {CyberpunkColors.TEXT_PRIMARY};
                 padding: 8px;
                 border: none;
                 font-weight: bold;
-                border-bottom: 2px solid #2196F3;
-            }
+                border-bottom: 2px solid {CyberpunkColors.NEON_CYAN};
+            }}
             
-            QHeaderView::section:hover {
-                background-color: #333;
-            }
+            QHeaderView::section:hover {{
+                background-color: {CyberpunkColors.BG_HOVER};
+                color: {CyberpunkColors.NEON_CYAN};
+            }}
             
-            QScrollBar:vertical {
-                background-color: #1E1E1E;
+            QScrollBar:vertical {{
+                background-color: {CyberpunkColors.BG_SURFACE};
                 width: 12px;
                 border: none;
-            }
+            }}
             
-            QScrollBar::handle:vertical {
-                background-color: #555;
+            QScrollBar::handle:vertical {{
+                background-color: #3A4556;
                 border-radius: 6px;
                 min-height: 20px;
-            }
+            }}
             
-            QScrollBar::handle:vertical:hover {
-                background-color: #666;
-            }
+            QScrollBar::handle:vertical:hover {{
+                background-color: {CyberpunkColors.NEON_CYAN};
+            }}
             
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
-            }
+            }}
         """)
     
     # ========== CONVENIENCE METHODS ==========

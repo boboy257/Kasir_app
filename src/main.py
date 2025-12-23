@@ -11,9 +11,9 @@ class AppController:
     def __init__(self):
         self.app = QApplication(sys.argv)
         
-        # ✅ LOAD THEME GLOBAL (Sebelum window dibuat)
+        # LOAD THEME GLOBAL (Sebelum window dibuat)
         style_manager = StyleManager()
-        if not style_manager.load_theme("dark"):
+        if not style_manager.load_theme("cyberpunk"):
             print("⚠️  Gagal load theme, pakai default Qt style")
         
         self.login_window = None
