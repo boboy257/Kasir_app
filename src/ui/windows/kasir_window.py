@@ -1,12 +1,10 @@
 """
-Kasir Window - REFACTORED with SmartNavigation
-===============================================
-100% Keyboard-driven POS system - Optimized for speed
+Kasir Window - REDESIGN SIDEBAR KANAN
 """
 
 from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QHBoxLayout, QLineEdit, QLabel, 
-    QPushButton, QDialog
+    QPushButton, QDialog, QFrame
 )
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -29,16 +27,7 @@ from src.cetak_struk import cetak_struk_pdf
 
 
 class KasirWindow(BaseWindow):
-    """
-    Kasir Window - Full keyboard navigation optimized for speed
-    
-    Target: < 3 detik per item
-    
-    Layout Zones:
-    - TOP: Barcode input + Button row (7 buttons)
-    - MIDDLE: Shopping cart table
-    - BOTTOM: Pending + Total + Bayar
-    """
+    """Kasir Window - Sidebar Layout"""
     
     def __init__(self):
         super().__init__()
@@ -54,186 +43,228 @@ class KasirWindow(BaseWindow):
         self.setup_global_shortcuts()
         self.setup_help_overlay(self.get_kasir_shortcuts())
         
-        self.setWindowTitle("Aplikasi Kasir - Mode Penjualan")
-        self.setGeometry(100, 100, 1100, 600)
+        self.setWindowTitle("Mode Kasir - POS System")
+        self.setGeometry(100, 100, 1200, 600)
     
     def setup_ui(self):
-        """Setup UI components"""
+        """Setup UI - SIDEBAR LAYOUT"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
         
-        # ========== TOP ROW: Barcode + Buttons ==========
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
+        
+        # ========== LEFT SECTION (MAIN AREA) ==========
+        left_section = QVBoxLayout()
+        left_section.setSpacing(15)
+        
+        # TOP: Barcode input + Qty label
         top_layout = QHBoxLayout()
         
-        lbl_barcode = QLabel("Scan Barcode:")
+        lbl_barcode = QLabel("Scan:")
         lbl_barcode.setStyleSheet("font-size: 14px; font-weight: bold;")
         
+        self.barcode_input = QLineEdit()
+        self.barcode_input.setPlaceholderText("Scan barcode... (↓ = Table, 0-9 = Qty)")
+        self.barcode_input.setMinimumHeight(45)
+        self.barcode_input.returnPressed.connect(self.tambah_barang_ke_keranjang)
+        
         self.lbl_qty_shortcut = QLabel("Qty: 1x")
-        self.lbl_qty_shortcut.setFixedWidth(80)
+        self.lbl_qty_shortcut.setFixedSize(100, 45)
         self.lbl_qty_shortcut.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_qty_shortcut.setStyleSheet("""
             QLabel {
                 font-size: 16px; font-weight: bold; color: #4CAF50;
                 background-color: #1E1E1E; border: 2px solid #4CAF50;
-                border-radius: 5px; padding: 5px;
+                border-radius: 5px;
             }
         """)
-        
-        self.barcode_input = QLineEdit()
-        self.barcode_input.setPlaceholderText("Scan barcode... (↓ = Table, 0-9 = Qty)")
-        self.barcode_input.setFixedHeight(40)
-        self.barcode_input.returnPressed.connect(self.tambah_barang_ke_keranjang)
-        
-        style = StyleManager()
-        
-        # Button row (7 buttons)
-        self.btn_cari = QPushButton("Cari (F4)")
-        self.btn_cari.setFixedHeight(40)
-        self.btn_cari.setFixedWidth(80)
-        self.btn_cari.clicked.connect(self.buka_dialog_cari)
-        
-        self.btn_qty = QPushButton("Qty (F2)")
-        self.btn_qty.setFixedHeight(40)
-        self.btn_qty.setFixedWidth(80)
-        self.btn_qty.setStyleSheet(style.get_button_style('warning'))
-        self.btn_qty.clicked.connect(self.ubah_qty_item)
-        
-        self.btn_diskon = QPushButton("Disc (F8)")
-        self.btn_diskon.setFixedHeight(40)
-        self.btn_diskon.setFixedWidth(80)
-        self.btn_diskon.setStyleSheet("""
-            QPushButton { background-color: #009688; color: white; border: none; }
-            QPushButton:hover { background-color: #00796B; }
-            QPushButton:focus { border: 2px solid #fff; }
-        """)
-        self.btn_diskon.clicked.connect(self.ubah_diskon_item)
-        
-        self.btn_reset = QPushButton("Reset (F5)")
-        self.btn_reset.setFixedHeight(40)
-        self.btn_reset.setFixedWidth(80)
-        self.btn_reset.setStyleSheet("""
-            QPushButton { background-color: #795548; color: white; border: none; }
-            QPushButton:hover { background-color: #6D4C41; }
-            QPushButton:focus { border: 2px solid #fff; }
-        """)
-        self.btn_reset.clicked.connect(self.reset_keranjang_confirm)
-        
-        self.btn_hapus = QPushButton("Hapus (Del)")
-        self.btn_hapus.setFixedHeight(40)
-        self.btn_hapus.setFixedWidth(90)
-        self.btn_hapus.setStyleSheet(style.get_button_style('danger'))
-        self.btn_hapus.clicked.connect(self.hapus_item_terpilih)
         
         top_layout.addWidget(lbl_barcode)
         top_layout.addWidget(self.barcode_input)
         top_layout.addWidget(self.lbl_qty_shortcut)
-        top_layout.addWidget(self.btn_cari)
-        top_layout.addWidget(self.btn_qty)
-        top_layout.addWidget(self.btn_diskon)
-        top_layout.addWidget(self.btn_reset)
-        top_layout.addWidget(self.btn_hapus)
-        layout.addLayout(top_layout)
+        left_section.addLayout(top_layout)
         
-        # ========== MIDDLE: TABLE ==========
+        # MIDDLE: Table
         self.table = SmartTable(0, 6)
-        self.table.setHorizontalHeaderLabels(["ID", "Nama Produk", "Harga", "Qty", "Disc", "Subtotal"])
+        self.table.setHorizontalHeaderLabels(["ID", "Nama", "Harga", "Qty", "Disc", "Subtotal"])
         self.table.setColumnHidden(0, True)
         self.table.stretch_column(1)
         self.table.set_column_width(2, 120)
         self.table.set_column_width(3, 50)
         self.table.set_column_width(4, 100)
-        self.table.set_column_width(5, 120)
+        self.table.set_column_width(5, 130)
         
-        layout.addWidget(self.table)
+        left_section.addWidget(self.table)
         
-        # ========== BOTTOM: Actions ==========
+        # BOTTOM: Action buttons (horizontal row)
         bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(10)
         
-        self.btn_pending = QPushButton("Pending (F6)")
-        self.btn_pending.setFixedSize(120, 60)
-        self.btn_pending.setStyleSheet("""
-            QPushButton { background-color: #9C27B0; color: white; border: none; }
-            QPushButton:hover { background-color: #7B1FA2; }
-            QPushButton:focus { border: 2px solid #fff; }
-        """)
-        self.btn_pending.clicked.connect(self.toggle_pending)
+        style = StyleManager()
         
-        self.label_total = QLabel("Total: Rp 0")
-        self.label_total.setStyleSheet("font-size: 24px; font-weight: bold; color: #2196F3;")
+         # ✅ Semua button FIXED SIZE (120x40) - konsisten!
+        self.btn_cari = QPushButton("🔍 Cari (F4)")
+        self.btn_cari.setStyleSheet(style.get_button_style_fixed('primary', 130, 40))
+        self.btn_cari.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_cari.clicked.connect(self.buka_dialog_cari)
         
-        self.btn_bayar = QPushButton("BAYAR (F12)")
-        self.btn_bayar.setFixedSize(200, 60)
-        self.btn_bayar.setStyleSheet(style.get_button_style('success') + "font-size: 18px;")
-        self.btn_bayar.clicked.connect(self.tampilkan_dialog_bayar)
+        self.btn_qty = QPushButton("✏️ Qty (F2)")
+        self.btn_qty.setStyleSheet(style.get_button_style_fixed('warning', 120, 40))
+        self.btn_qty.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_qty.clicked.connect(self.ubah_qty_item)
         
-        bottom_layout.addWidget(self.btn_pending)
+        self.btn_diskon = QPushButton("🎫 Disc (F8)")
+        self.btn_diskon.setStyleSheet(style.get_button_style_fixed('info', 120, 40))
+        self.btn_diskon.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_diskon.clicked.connect(self.ubah_diskon_item)
+        
+        self.btn_hapus = QPushButton("🗑️ Hapus (Del)")
+        self.btn_hapus.setStyleSheet(style.get_button_style_fixed('danger', 140, 40))
+        self.btn_hapus.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_hapus.clicked.connect(self.hapus_item_terpilih)
+        
+        self.btn_reset = QPushButton("🔄 Reset (F5)")
+        self.btn_reset.setStyleSheet(style.get_button_style_fixed('default', 130, 40))
+        self.btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reset.clicked.connect(self.reset_keranjang_confirm)
+        
+        bottom_layout.addWidget(self.btn_cari)
+        bottom_layout.addWidget(self.btn_qty)
+        bottom_layout.addWidget(self.btn_diskon)
+        bottom_layout.addWidget(self.btn_hapus)
+        bottom_layout.addWidget(self.btn_reset)
         bottom_layout.addStretch()
-        bottom_layout.addWidget(self.label_total)
-        bottom_layout.addWidget(self.btn_bayar)
-        layout.addLayout(bottom_layout)
+        
+        left_section.addLayout(bottom_layout)
+        
+        main_layout.addLayout(left_section, 3)
+        
+        # ========== RIGHT SIDEBAR (ACTIONS) ==========
+        right_sidebar = QVBoxLayout()
+        right_sidebar.setSpacing(15)
+        
+        # CARD: Total
+        card_total = QFrame()
+        card_total.setStyleSheet("""
+            QFrame {
+                background-color: #1A1F2E;
+                border: 2px solid #00F5FF;
+                border-radius: 10px;
+                padding: 20px;
+            }
+        """)
+        card_total_layout = QVBoxLayout(card_total)
+        
+        lbl_total_title = QLabel("TOTAL BELANJA")
+        lbl_total_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_total_title.setStyleSheet("font-size: 14px; color: #aaa; border: none;")
+        
+        self.label_total = QLabel("Rp 0")
+        self.label_total.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_total.setStyleSheet("""
+            font-size: 32px; font-weight: bold; 
+            color: #00F5FF; border: none;
+        """)
+        
+        card_total_layout.addWidget(lbl_total_title)
+        card_total_layout.addWidget(self.label_total)
+        right_sidebar.addWidget(card_total)
+        
+        right_sidebar.addSpacing(10)
+        
+        # Button: Pending
+        self.btn_pending = QPushButton("🔖 PENDING\n(F6)")
+        self.btn_pending.setMinimumHeight(80)
+        self.btn_pending.setStyleSheet("""
+            QPushButton {
+                background-color: #B026FF;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 15px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #9C1FD9; }
+            QPushButton:focus { border: 3px solid #fff; }
+        """)
+        self.btn_pending.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pending.clicked.connect(self.toggle_pending)
+        right_sidebar.addWidget(self.btn_pending)
+        
+        right_sidebar.addSpacing(10)
+        
+        # Button: BAYAR (LARGE)
+        self.btn_bayar = QPushButton("💰 BAYAR\n(F12)")
+        self.btn_bayar.setMinimumHeight(120)
+        self.btn_bayar.setStyleSheet("""
+            QPushButton {
+                background-color: #39FF14;
+                color: #0A0A0F;
+                border: none;
+                border-radius: 10px;
+                padding: 20px;
+                font-size: 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2EE00F; }
+            QPushButton:focus { border: 3px solid #fff; }
+        """)
+        self.btn_bayar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_bayar.clicked.connect(self.tampilkan_dialog_bayar)
+        right_sidebar.addWidget(self.btn_bayar)
+        
+        right_sidebar.addStretch()
+        
+        main_layout.addLayout(right_sidebar, 1)
         
         self.update_pending_button()
     
     def setup_navigation(self):
-        """
-        ✨ SMART NAVIGATION SETUP
+        """Setup keyboard navigation"""
         
-        Zones:
-        1. Barcode input (PRIMARY - always return here!)
-        2. Button row (5 buttons - circular)
-        3. Table (middle zone)
-        4. Bottom buttons (2 buttons)
-        
-        Critical: Focus ALWAYS returns to barcode after ANY action!
-        """
-        
-        # ===== ZONE 1: BARCODE INPUT =====
-        # Number keys 0-9 handled in keyPressEvent (special case)
-        # Down = ke button row atau table
+        # Barcode: 0-9 handled in eventFilter
         self.barcode_input.installEventFilter(self)
         
-        # ===== ZONE 2: BUTTON ROW (Circular!) =====
+        # Bottom button row (circular)
         button_row = [
-            self.btn_cari,
-            self.btn_qty,
-            self.btn_diskon,
-            self.btn_reset,
-            self.btn_hapus
+            self.btn_cari, self.btn_qty, self.btn_diskon,
+            self.btn_hapus, self.btn_reset
         ]
-        
         self.register_navigation_row(button_row, circular=True)
         
-        # All buttons: Enter = Click, Up = Barcode
         for btn in button_row:
             self.register_navigation(btn, {
                 Qt.Key.Key_Return: lambda b=btn: b.click(),
                 Qt.Key.Key_Up: self.barcode_input,
-                Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table) if self.table.rowCount() > 0 else None
+                Qt.Key.Key_Down: lambda: self.focus_table_first_row(self.table)
             })
         
-        # ===== ZONE 3: TABLE =====
+        # Table callbacks
         self.register_table_callbacks(self.table, {
-            'edit': self.ubah_qty_item,         # F2 / Enter
-            'delete': self.hapus_item_terpilih, # Delete
-            'focus_up': self.barcode_input,     # Up at row 0 → Barcode
-            'focus_down': self.btn_pending      # Down at last → Pending
+            'edit': self.ubah_qty_item,
+            'delete': self.hapus_item_terpilih,
+            'focus_up': self.barcode_input,
+            'focus_down': self.btn_pending
         })
         self.table.installEventFilter(self)
         
-        # ===== ZONE 4: BOTTOM BUTTONS =====
-        self.register_navigation_row([self.btn_pending, self.btn_bayar], circular=False)
+        # Sidebar buttons
+        self.register_navigation(self.btn_pending, {
+            Qt.Key.Key_Return: self.toggle_pending,
+            Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table),
+            Qt.Key.Key_Down: self.btn_bayar
+        })
         
-        for btn in [self.btn_pending, self.btn_bayar]:
-            self.register_navigation(btn, {
-                Qt.Key.Key_Return: lambda b=btn: b.click(),
-                Qt.Key.Key_Up: lambda: self.focus_table_last_row(self.table) if self.table.rowCount() > 0 else self.barcode_input.setFocus()
-            })
+        self.register_navigation(self.btn_bayar, {
+            Qt.Key.Key_Return: self.tampilkan_dialog_bayar,
+            Qt.Key.Key_Up: self.btn_pending
+        })
     
     def setup_global_shortcuts(self):
-        """Global F-key shortcuts (preserve existing functionality)"""
+        """F-key shortcuts"""
         QShortcut(QKeySequence("F2"), self).activated.connect(self.ubah_qty_item)
         QShortcut(QKeySequence("F4"), self).activated.connect(self.buka_dialog_cari)
         QShortcut(QKeySequence("F5"), self).activated.connect(self.reset_keranjang_confirm)
@@ -243,20 +274,19 @@ class KasirWindow(BaseWindow):
         QShortcut(QKeySequence("Delete"), self).activated.connect(self.hapus_item_terpilih)
     
     def eventFilter(self, obj, event):
-        """Handle special cases: Number keys 0-9 for qty, Barcode Down navigation"""
+        """Handle number keys for qty & navigation"""
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
-            # ===== BARCODE INPUT: Number keys 0-9 =====
+            
             if obj == self.barcode_input:
-                
-                # Number keys 0-9: Set qty shortcut
+                # Number keys 0-9
                 if Qt.Key.Key_0 <= key <= Qt.Key.Key_9 and not event.modifiers():
                     angka = key - Qt.Key.Key_0
                     self.qty_shortcut = 1 if angka == 0 else angka
                     self.update_qty_label()
                     return True
                 
-                # Down: ke button row atau table
+                # Down to table
                 if key == Qt.Key.Key_Down:
                     if self.table.rowCount() > 0:
                         self.focus_table_first_row(self.table)
@@ -264,29 +294,23 @@ class KasirWindow(BaseWindow):
                         self.btn_cari.setFocus()
                     return True
             
-            # ✅ TABLE UP MANUAL
             elif obj == self.table:
-                if key == Qt.Key.Key_Up:
-                    if self.table.currentRow() == 0:
-                        self.barcode_input.setFocus()
-                        self.barcode_input.selectAll()
-                        return True
+                if key == Qt.Key.Key_Up and self.table.currentRow() == 0:
+                    self.barcode_input.setFocus()
+                    self.barcode_input.selectAll()
+                    return True
         
         return super().eventFilter(obj, event)
     
     def keyPressEvent(self, event):
-        """Handle ESC with confirmation"""
+        """ESC with confirmation"""
         if event.key() == Qt.Key.Key_Escape:
             if self.keranjang_belanja or self.daftar_pending:
-                pesan = "Yakin ingin keluar?\n\n"
-                
+                pesan = "Yakin keluar?\n\n"
                 if self.keranjang_belanja:
-                    pesan += f"⚠️ Ada {len(self.keranjang_belanja)} barang di keranjang\n"
-                    pesan += "   (Tekan F6 untuk Pending)\n\n"
-                
+                    pesan += f"⚠️ Ada {len(self.keranjang_belanja)} item di keranjang\n"
                 if self.daftar_pending:
                     pesan += f"⚠️ Ada {len(self.daftar_pending)} transaksi pending\n"
-                    pesan += "   (Data pending akan hilang!)\n\n"
                 
                 if self.confirm_action("Keluar Kasir", pesan):
                     self.close()
@@ -296,17 +320,17 @@ class KasirWindow(BaseWindow):
         
         super().keyPressEvent(event)
     
-    # ========== QTY LABEL UPDATE ==========
+    # ========== QTY LABEL ==========
     
     def update_qty_label(self):
-        """Update qty shortcut label visual"""
+        """Update qty visual"""
         if self.qty_shortcut > 1:
             self.lbl_qty_shortcut.setText(f"Qty: {self.qty_shortcut}x")
             self.lbl_qty_shortcut.setStyleSheet("""
                 QLabel {
                     font-size: 16px; font-weight: bold; color: #FF9800;
                     background-color: #1E1E1E; border: 2px solid #FF9800;
-                    border-radius: 5px; padding: 5px;
+                    border-radius: 5px;
                 }
             """)
         else:
@@ -315,14 +339,14 @@ class KasirWindow(BaseWindow):
                 QLabel {
                     font-size: 16px; font-weight: bold; color: #4CAF50;
                     background-color: #1E1E1E; border: 2px solid #4CAF50;
-                    border-radius: 5px; padding: 5px;
+                    border-radius: 5px;
                 }
             """)
     
     # ========== CART OPERATIONS ==========
     
     def tambah_barang_ke_keranjang(self):
-        """Add item to cart (PRIMARY FUNCTION - Speed critical!)"""
+        """Add item to cart"""
         barcode = self.barcode_input.text().strip()
         if not barcode:
             return
@@ -332,7 +356,6 @@ class KasirWindow(BaseWindow):
         if produk:
             id_produk, nama, harga, stok_db = produk
             
-            # Validasi stok
             if stok_db <= 0:
                 self.show_warning("Stok Habis", f"Stok '{nama}' kosong!")
                 self.barcode_input.clear()
@@ -348,7 +371,7 @@ class KasirWindow(BaseWindow):
                 self.barcode_input.setFocus()
                 return
             
-            # Check if item already in cart
+            # Check existing item
             item_found = False
             for item in self.keranjang_belanja:
                 if item['id'] == id_produk:
@@ -364,7 +387,6 @@ class KasirWindow(BaseWindow):
                     item_found = True
                     break
             
-            # Add new item
             if not item_found:
                 self.keranjang_belanja.append({
                     'id': id_produk,
@@ -379,17 +401,15 @@ class KasirWindow(BaseWindow):
             self.qty_shortcut = 1
             self.update_qty_label()
         else:
-            # Barcode not found - offer search
             reply = self.confirm_action("404", f"Barcode '{barcode}' tidak ada.\nCari manual?")
             if reply:
                 self.buka_dialog_cari()
         
-        # CRITICAL: Always return to barcode!
         self.barcode_input.clear()
         self.barcode_input.setFocus()
     
     def update_tabel_dan_total(self):
-        """Update table and total display"""
+        """Update table & total"""
         self.table.clear_table()
         self.total_transaksi = 0
         
@@ -410,7 +430,7 @@ class KasirWindow(BaseWindow):
             
             self.total_transaksi += item['subtotal']
         
-        self.label_total.setText(f"Total: Rp {int(self.total_transaksi):,}")
+        self.label_total.setText(f"Rp {int(self.total_transaksi):,}")
     
     def reset_keranjang(self):
         """Clear cart"""
@@ -420,13 +440,13 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def reset_keranjang_confirm(self):
-        """Reset cart with confirmation"""
+        """Reset with confirm"""
         if not self.keranjang_belanja:
             return
         if self.confirm_action("Batal Transaksi", "Kosongkan keranjang?"):
             self.reset_keranjang()
     
-    # ========== ITEM ACTIONS (Always return to barcode!) ==========
+    # ========== ITEM ACTIONS ==========
     
     def ubah_qty_item(self):
         """Edit quantity"""
@@ -438,7 +458,6 @@ class KasirWindow(BaseWindow):
         
         item = self.keranjang_belanja[row]
         
-        # Get stok from database
         conn = create_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT stok FROM produk WHERE id = ?", (item['id'],))
@@ -498,7 +517,7 @@ class KasirWindow(BaseWindow):
         
         self.barcode_input.setFocus()
     
-    # ========== DIALOGS (Always return to barcode!) ==========
+    # ========== DIALOGS ==========
     
     def buka_dialog_cari(self):
         """Open search dialog"""
@@ -511,17 +530,15 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def tampilkan_dialog_bayar(self):
-        """Payment dialog - MULTI PAYMENT VERSION"""
+        """Payment dialog"""
         if not self.keranjang_belanja:
             self.show_warning("Kosong", "Keranjang kosong.")
             self.barcode_input.setFocus()
             return
         
-        # Multi-payment dialog
         dialog = MultiPaymentDialog(self.total_transaksi, self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.payments:
-            # Get payment details
-            payments = dialog.payments  # {'cash': 50000, 'debit': 30000, ...}
+            payments = dialog.payments
             kembalian = dialog.kembalian
             total_dibayar = sum(payments.values())
             
@@ -532,7 +549,6 @@ class KasirWindow(BaseWindow):
     def toggle_pending(self):
         """Pending/Recall"""
         if self.keranjang_belanja:
-            # Save to pending
             if len(self.daftar_pending) >= self.MAX_PENDING:
                 self.show_warning("Pending Penuh", 
                     f"Maksimal {self.MAX_PENDING} transaksi pending.")
@@ -562,7 +578,6 @@ class KasirWindow(BaseWindow):
                     f"Total Pending: {len(self.daftar_pending)}")
         
         elif self.daftar_pending:
-            # Recall from pending
             dialog = PendingDialog(self.daftar_pending, self)
             result = dialog.exec()
             
@@ -575,7 +590,7 @@ class KasirWindow(BaseWindow):
                     self.daftar_pending.pop(idx)
                     self.update_pending_button()
             
-            elif result == 2:  # Delete
+            elif result == 2:
                 idx = dialog.selected_index
                 if idx is not None:
                     self.daftar_pending.pop(idx)
@@ -587,35 +602,44 @@ class KasirWindow(BaseWindow):
         self.barcode_input.setFocus()
     
     def update_pending_button(self):
-        """Update pending button appearance"""
+        """Update pending button"""
         count = len(self.daftar_pending)
         
         if count == 0:
-            self.btn_pending.setText("Pending (F6)")
+            self.btn_pending.setText("🔖 PENDING\n(F6)")
             self.btn_pending.setStyleSheet("""
-                QPushButton { background-color: #9C27B0; color: white; border: none; }
-                QPushButton:hover { background-color: #7B1FA2; }
-                QPushButton:focus { border: 2px solid #fff; }
+                QPushButton {
+                    background-color: #B026FF;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 15px;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+                QPushButton:hover { background-color: #9C1FD9; }
+                QPushButton:focus { border: 3px solid #fff; }
             """)
         else:
-            self.btn_pending.setText(f"Pending ({count}) F6")
+            self.btn_pending.setText(f"🔖 PENDING ({count})\n(F6)")
             self.btn_pending.setStyleSheet("""
-                QPushButton { background-color: #FF9800; color: white; border: none; }
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 15px;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
                 QPushButton:hover { background-color: #F57C00; }
-                QPushButton:focus { border: 2px solid #fff; }
+                QPushButton:focus { border: 3px solid #fff; }
             """)
     
     # ========== SAVE TRANSACTION ==========
     
     def simpan_transaksi(self, payments_dict, total_dibayar, kembalian):
-        """
-        Save transaction dengan multi-payment
-        
-        Args:
-            payments_dict: {'cash': 50000, 'debit': 30000, ...}
-            total_dibayar: Total yang dibayarkan
-            kembalian: Kembalian
-        """
+        """Save transaction dengan multi-payment"""
         conn = create_connection()
         cursor = conn.cursor()
         
@@ -641,7 +665,7 @@ class KasirWindow(BaseWindow):
                 # Update stok
                 cursor.execute("UPDATE produk SET stok = stok - ? WHERE id = ?", (item['qty'], item['id']))
             
-            # ✅ NEW: Insert payment methods
+            # Save payment methods
             from src.database import simpan_payment_methods
             simpan_payment_methods(transaksi_id, payments_dict, cursor, conn)
             
@@ -667,7 +691,7 @@ class KasirWindow(BaseWindow):
             except Exception as e:
                 print(f"Error cetak struk: {e}")
             
-            # ✅ NEW: Preview dengan payment breakdown
+            # Preview dengan payment breakdown
             tanggal_str = datetime.now().strftime('%d/%m/%Y %H:%M')
             preview_dialog = PreviewDialog(
                 no_faktur, tanggal_str, username, data_struk,
@@ -709,12 +733,7 @@ class KasirWindow(BaseWindow):
     
     # ========== KEYBOARD SHORTCUTS DEFINITION ==========      
     def get_kasir_shortcuts(self) -> dict:
-        """
-        Define keyboard shortcuts untuk kasir window
-        
-        Returns:
-            dict: Shortcuts configuration
-        """
+        """Define keyboard shortcuts untuk kasir window"""
         return {
             "Scan Barang": [
                 ("0-9", "Set quantity (tekan angka 1-9)"),

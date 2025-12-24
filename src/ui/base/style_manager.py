@@ -312,6 +312,38 @@ class StyleManager:
         button.setFixedHeight(height)
     
     @staticmethod
+    def get_button_style_fixed(variant='default', width=100, height=40):
+        """
+        Get button style dengan FIXED SIZE (konsisten!)
+        
+        Args:
+            variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
+            width: Fixed width in pixels
+            height: Fixed height in pixels
+        
+        Returns:
+            str: Complete stylesheet dengan fixed size
+        
+        Usage:
+            btn.setStyleSheet(StyleManager.get_button_style_fixed('primary', 120, 40))
+        """
+        base_style = StyleManager.get_button_style(variant)
+        
+        size_style = f"""
+            QPushButton {{
+                min-width: {width}px;
+                max-width: {width}px;
+                min-height: {height}px;
+                max-height: {height}px;
+                padding: 10px 20px;
+                font-size: 13px;
+                font-weight: bold;
+            }}
+        """
+        
+        return base_style + size_style
+    
+    @staticmethod
     def get_button_style_with_size(variant='default', size='medium'):
         """
         Get button style dengan size included
